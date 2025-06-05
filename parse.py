@@ -43,6 +43,8 @@ class PANLogProcessor:
             'device_groups': set(),
             'direct_rules': {},
             'direct_rule_contexts': {},
+            'indirect_rules': {},
+            'indirect_rule_contexts': {},
             'address_groups': [],
             'nat_rules': set(),
             'service_groups': set(),
@@ -244,7 +246,7 @@ class PANLogProcessor:
                         if rule_name in self.results[target_addr]['direct_rules']:
                             continue
                             
-                        if not hasattr(self.results[target_addr], 'indirect_rules'):
+                        if 'indirect_rules' not in self.results[target_addr]:
                             self.results[target_addr]['indirect_rules'] = {}
                             self.results[target_addr]['indirect_rule_contexts'] = {}
                             
@@ -258,10 +260,16 @@ class PANLogProcessor:
                             context = f"references address-group '{group_name}' from device-group '{group_info['device_group']}' that contains {target_addr}"
                             
                         # Add usage context
-                        if "destination" in line and group_name in line.split("destination")[1].split("source")[0]:
-                            context += " (in destination)"
-                        elif "source" in line and group_name in line.split("source")[1].split("destination")[0]:
-                            context += " (in source)"
+                        if "destination" in line and group_name in line:
+                            # Check if group appears after "destination" keyword
+                            dest_parts = line.split("destination")
+                            if len(dest_parts) > 1 and group_name in dest_parts[1]:
+                                context += " (in destination)"
+                        elif "source" in line and group_name in line:
+                            # Check if group appears after "source" keyword  
+                            source_parts = line.split("source")
+                            if len(source_parts) > 1 and group_name in source_parts[1]:
+                                context += " (in source)"
                             
                         self.results[target_addr]['indirect_rule_contexts'][rule_name] = context
                         
@@ -280,7 +288,7 @@ class PANLogProcessor:
             
         # Format indirect rules
         indirect_rules = []
-        if hasattr(result, 'indirect_rules'):
+        if 'indirect_rules' in result:
             for rule, dg in result.get('indirect_rules', {}).items():
                 context = result.get('indirect_rule_contexts', {}).get(rule, 'indirect reference')
                 indirect_rules.append(f"{rule} (Device Group: {dg}, {context})")
@@ -315,7 +323,10 @@ def write_results(output_file, address_name, matching_lines, items_dict):
                         parts = item.split(" (Device Group: ")
                         if len(parts) == 2:
                             rule_name = parts[0]
-                            dg_part = parts[1].rstrip(")")
+                            dg_part = parts[1]
+                            # Remove only the final closing parenthesis
+                            if dg_part.endswith(")"):
+                                dg_part = dg_part[:-1]
                             
                             if ", " in dg_part:
                                 device_group, context = dg_part.split(", ", 1)
@@ -351,7 +362,7 @@ def write_results(output_file, address_name, matching_lines, items_dict):
                 elif category == "Redundant Addresses" and items:
                     file.write("  Redundant address objects with same ip-netmask:\n")
                     for addr in items:
-                        file.write(f"    - {addr['name']}\n")
+                        file.write(f"    - {addr['name']}:\n")
                         file.write(f"      - ip-netmask: {addr['ip-netmask']}\n")
                         file.write(f"      - device group: {addr['device_group']}\n")
                 
