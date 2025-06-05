@@ -1,0 +1,9 @@
+{
+  "name": "pan-parser",
+  "version": "1.0.0",
+  "description": "Interactive PAN log parser",
+  "scripts": {
+    "setup": "bash setup.sh",
+    "parser": "echo 'Starting parser...' && bash setup.sh --with-parser"
+  }
+}
