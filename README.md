@@ -1,6 +1,6 @@
 # PAN Configuration Log Parser (Go Edition)
 
-A high-performance Go-based command-line utility that analyzes Palo Alto Networks configuration logs to find references to specific IP address objects. Optimized for large Panorama configuration files with millions of lines.
+A high-performance, modular Go-based command-line utility that analyzes Palo Alto Networks configuration logs to find references to specific IP address objects. Features a clean architecture with separated concerns and optimized for large Panorama configuration files with millions of lines.
 
 ## What It Does
 
@@ -13,18 +13,25 @@ This tool parses PAN configuration exports/logs to help network administrators u
 - **Redundant Address Detection**: Finds other address objects with the same IP/netmask
 - **Nested Address Groups**: Analyzes complex address group hierarchies
 
-## Performance Features
+## Architecture & Performance Features
 
+### Modular Design
+- **Clean Package Structure**: Separated concerns across focused packages (processor, models, ui, utils)
+- **Type-Safe Models**: Well-defined data structures in dedicated models package
+- **Separated UI Layer**: Independent UI package supporting both interactive and command-line modes
+- **Utility Functions**: Reusable utilities for formatting, parsing, and file operations
+
+### Performance Optimizations
 - **Memory-Optimized Processing**: Loads entire configuration into memory for faster analysis
 - **Pre-Compiled Regex**: All patterns compiled once at startup for maximum performance
-- **Progress Reporting**: Real-time progress updates for large files (50K-150K line intervals)
+- **Progress Reporting**: Real-time progress updates for large files (200K-500K line intervals)
 - **Zero Dependencies**: Uses only Go standard library - no external dependencies required
 - **Efficient Data Structures**: Native Go maps and slices for optimal performance
 
 ## Installation
 
 ### Prerequisites
-- Go 1.19 or later
+- Go 1.20 or later (as specified in go.mod)
 
 ### Quick Setup
 ```bash
@@ -32,9 +39,16 @@ This tool parses PAN configuration exports/logs to help network administrators u
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
 
-# Build the application
+# Build the application (creates modular binary)
 npm run setup
 # or manually: go build -o pan-parser main.go
+
+# Quick build without npm
+npm run build
+
+# Verify installation and show help
+npm run test
+# or: ./pan-parser -h
 ```
 
 ## Usage
@@ -43,8 +57,11 @@ npm run setup
 ```bash
 ./pan-parser -i
 # or via npm: npm run parser
+
+# Quick interactive run
+npm run run
 ```
-The interactive mode provides a guided experience with colored terminal output and prompts for all required inputs.
+The interactive mode provides a guided experience with colored terminal output, progress reporting, and prompts for all required inputs. Features multi-address analysis and address group command generation.
 
 ### Command Line Mode
 ```bash
@@ -146,9 +163,38 @@ Expected performance improvements over traditional line-by-line parsing:
 - **Rule Analysis**: Understand both direct and indirect rule relationships
 - **Large Panorama Analysis**: Process million-line configuration files efficiently
 
+## Project Structure
+
+### Package Architecture
+```
+├── main.go                 # CLI interface and orchestration
+├── models/
+│   └── models.go          # Data structures and type definitions
+├── processor/
+│   ├── processor.go       # Core processing engine
+│   └── analysis.go        # Advanced analysis algorithms
+├── ui/
+│   ├── display.go         # Terminal display and formatting
+│   └── interactive.go     # Interactive mode implementation
+├── utils/
+│   ├── utils.go          # Utility functions
+│   └── writer.go         # Output generation and file writing
+├── setup.sh              # Build script
+├── package.json          # NPM wrapper commands
+├── go.mod               # Go module definition
+└── outputs/             # Generated analysis results
+```
+
+### Component Responsibilities
+- **Main**: Command-line interface, flag parsing, and orchestration
+- **Models**: Type-safe data structures, regex patterns, result models
+- **Processor**: Core parsing engine, pattern matching, relationship analysis
+- **UI**: User interface layer with color formatting and interactive mode
+- **Utils**: Reusable utilities for formatting, parsing, and file operations
+
 ## Build Requirements
 
-- **Go 1.19+**: Required for building the application
+- **Go 1.20+**: Required for building the application (as specified in go.mod)
 - **No Runtime Dependencies**: Uses only Go standard library
 
 The tool is completely self-contained after building - no external dependencies required.

@@ -47,36 +47,60 @@ npm run run
 ## Architecture Notes
 
 ### Core Functionality
-- **Main Parser (`main.go`)**: High-performance single-file Go application optimized for large configuration files
+- **Main Entry (`main.go`)**: Command-line interface, flag parsing, and high-level orchestration
+- **Processor Package (`processor/`)**: Core parsing engine with optimized algorithms
+  - `processor.go`: Main processing logic, file parsing, and pattern matching
+  - `analysis.go`: Advanced analysis features (redundant addresses, indirect rules, nested groups)
+  - `cleanup.go`: Redundant address cleanup analysis and command generation
+- **Models Package (`models/`)**: Data structures and type definitions
+  - `models.go`: All data models, regex patterns, and result structures
+- **UI Package (`ui/`)**: User interface and terminal interaction
+  - `display.go`: Color formatting and output display functions
+  - `interactive.go`: Interactive mode implementation with guided user experience
+- **Utils Package (`utils/`)**: Utility functions and file operations
+  - `utils.go`: Formatting, parsing, and system utilities
+  - `writer.go`: Structured YAML output generation and file writing
 - **Setup Script (`setup.sh`)**: Bash script that builds the Go binary and verifies Go installation
 - **NPM Integration**: Simple package.json provides convenient npm commands that wrap the Go tooling
 
 ### Key Processing Flow
-1. **Memory-Optimized File Reading**: Loads entire configuration into memory for faster processing
-2. **Compiled Regex Patterns**: Pre-compiled regex patterns for maximum performance
-3. **Relationship Analysis**: Identifies direct and indirect relationships through address groups
-4. **Context Extraction**: Determines how addresses are used (source, destination, etc.)
-5. **Structured Output Generation**: Creates YAML-like output files with detailed analysis results
+1. **Memory-Optimized File Reading**: Loads entire configuration into memory for faster processing (processor/processor.go:63-203)
+2. **Compiled Regex Patterns**: Pre-compiled regex patterns for maximum performance (models/models.go:6-18)
+3. **Relationship Analysis**: Identifies direct and indirect relationships through address groups (processor/analysis.go)
+4. **Context Extraction**: Determines how addresses are used (source, destination, etc.) (processor/processor.go:256-309)
+5. **Redundant Address Cleanup**: Smart scope promotion and cleanup command generation (processor/cleanup.go)
+6. **Structured Output Generation**: Creates YAML-like output files with detailed analysis results (utils/writer.go)
 
 ### Performance Optimizations
 - **In-Memory Processing**: Entire configuration file loaded into memory for faster analysis
-- **Pre-Compiled Regex**: All patterns compiled once at startup
-- **Efficient Data Structures**: Uses native Go maps and slices for optimal performance
-- **Progress Reporting**: Shows progress every 50K-150K lines for large files
+- **Pre-Compiled Regex**: All patterns compiled once at startup (models/models.go:23-37)
+- **Efficient Data Structures**: Uses native Go maps and slices for optimal performance (models/models.go:35-96)
+- **Progress Reporting**: Shows progress every 200K-500K lines for large files (processor/processor.go:120-137)
 - **Minimal Dependencies**: Uses only Go standard library (no external dependencies)
 
 ### Data Structure Patterns
-- Address groups processed with context information (shared vs device-group)
-- Security rules organized by device groups with relationship context
-- Results include redundant address detection based on IP netmask matching
-- Nested address group analysis for complex hierarchies
+- **Modular Design**: Clean separation of concerns across packages
+- **Structured Models**: Well-defined data structures for all components (models/models.go)
+- **Address groups processed with context information** (shared vs device-group)
+- **Security rules organized by device groups** with relationship context
+- **Results include redundant address detection** based on IP netmask matching (processor/analysis.go:12-53)
+- **Nested address group analysis** for complex hierarchies (processor/analysis.go:178-282)
+- **Smart cleanup analysis** with scope promotion logic and usage pattern detection (processor/cleanup.go)
 
 ### Dependencies
 - **Runtime**: Zero external dependencies - uses only Go standard library
 - **Build Tools**: Go 1.20+ required (as specified in go.mod)
 
 ### File Structure
-- **`main.go`**: Single-file Go application containing all functionality (~1575 lines)
+- **`main.go`**: CLI interface and orchestration (~202 lines)
+- **`models/models.go`**: Data structures and type definitions (~102 lines)
+- **`processor/processor.go`**: Core processing engine (~391 lines)
+- **`processor/analysis.go`**: Advanced analysis algorithms (~282 lines)
+- **`processor/cleanup.go`**: Redundant address cleanup logic (~400+ lines)
+- **`ui/display.go`**: Terminal display and formatting (~75 lines)
+- **`ui/interactive.go`**: Interactive mode implementation (~203 lines)
+- **`utils/utils.go`**: Utility functions (~88 lines)
+- **`utils/writer.go`**: Output generation and file writing (~288 lines)
 - **`setup.sh`**: Bash script for building and optionally running the parser
 - **`package.json`**: NPM wrapper scripts for convenient command execution
 - **`go.mod`**: Go module definition (minimal, no external dependencies)
@@ -85,6 +109,7 @@ npm run run
 ### Output Format
 - **Main Results**: `{address}_results.yml` - Comprehensive analysis with structured sections
 - **Group Commands**: `{address}_add_to_groups_commands.yml` - Generated CLI commands for adding new addresses to discovered groups
+- **Cleanup Commands**: `{address}_redundant_cleanup_commands.yml` - Generated commands for cleaning up redundant addresses with smart scope promotion
 - **Multi-Address**: `multiple_addresses_results.yml` - Combined analysis when processing multiple addresses
 
 ## Development Notes
@@ -94,6 +119,40 @@ npm run run
 - All output files are automatically saved to `outputs/` directory with YAML-like structured format
 - The parser handles quoted rule names and complex PAN configuration syntax
 - Includes redundant address detection to identify objects with same IP netmask
+- **Comprehensive redundant address cleanup** with smart scope promotion and command generation
 - Optimized for large Panorama configuration files with millions of lines (in-memory processing)
 - Memory-efficient processing suitable for resource-constrained environments
 - Includes address group helper that can generate commands to add new addresses to existing groups
+- **Smart scope optimization**: Automatically promotes addresses to shared scope when used in multiple device groups to reduce configuration file size
+
+## Redundant Address Cleanup Feature
+
+The tool includes comprehensive redundant address cleanup functionality that helps optimize PAN configurations by:
+
+### Smart Scope Promotion
+- **Automatic Detection**: Identifies when redundant addresses are used across multiple device groups
+- **Shared Scope Promotion**: Promotes target addresses to shared scope when beneficial for configuration size reduction
+- **Optimization Logic**: Only promotes to shared when used in more than one device group
+
+### Deep Usage Analysis
+- **Re-parsing for Accuracy**: Performs additional configuration parsing to ensure comprehensive usage detection
+- **Context-Aware Analysis**: Understands how redundant addresses are used (source, destination, address groups, etc.)
+- **Cross-Reference Detection**: Maps all relationships between redundant addresses and configuration elements
+
+### Command Generation
+- **Safe Cleanup Commands**: Generates step-by-step commands for safely removing redundant addresses
+- **Rule Updates**: Creates commands to update security rules to use the target address instead of redundant ones
+- **Address Group Updates**: Updates address group memberships to use optimized addresses
+- **Scope Management**: Handles address object creation in appropriate scopes (shared vs device-group)
+
+### Output Format
+The cleanup commands are organized into logical steps:
+1. **Security Rule Updates**: Commands to replace redundant addresses in rules
+2. **Address Group Updates**: Commands to update group memberships
+3. **Object Creation**: Commands to create target addresses in optimal scopes (if needed)
+4. **Object Removal**: Commands to safely remove redundant address definitions
+
+### Interactive Workflow
+- **User Confirmation**: Prompts user before generating cleanup commands
+- **Analysis Summary**: Shows impact analysis including number of device groups affected
+- **Safety Warnings**: Reminds users to test in non-production environments first

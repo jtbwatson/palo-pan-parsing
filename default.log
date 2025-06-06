@@ -10,8 +10,10 @@ set shared address linux2 ip-netmask 10.0.1.2/32
 set shared address-group linux-hosts static [ linux1 linux2 ]
 set shared address host-10.0.0.1 ip-netmask 10.0.0.1/32
 set shared address llinux1 ip-netmask 10.0.1.1/32
+set device-group dg-management address linux1-host ip-netmask 10.0.1.1/32
 set shared address-group linux-servers-extra static [ linux1 linux2 linux3 ]
 set shared address-group windows-hosts static [ windows1 windows2 ]
 set shared address-group secondary-hosts static [ linux2 windows2 ]
+set device-group dg-management pre-rulebase security rules SomeLinuxRule destination [ linux1-host windows2 ]
 set device-group dg-management pre-rulebase security rules SomeDNSRule destination [ SomeAddress linux-hosts ]
 set device-group dg-test pre-rulebase security rules MixedRule source [ linux1 ] destination [ OtherAddress secondary-hosts AnotherGroup ]
