@@ -2,6 +2,18 @@
 
 A high-performance, modular Go-based command-line utility that analyzes Palo Alto Networks configuration logs to find references to specific IP address objects. Features a clean architecture with separated concerns and optimized for large Panorama configuration files with millions of lines.
 
+## Quick Start
+
+```bash
+# 1. Clone and build
+git clone https://github.com/jtbwatson/palo-pan-parsing.git
+cd palo-pan-parsing
+npm run setup
+
+# 2. Launch modern TUI interface
+npm run tui
+```
+
 ## What It Does
 
 This tool parses PAN configuration exports/logs to help network administrators understand how IP address objects are being used across their firewall configuration. It identifies:
@@ -31,7 +43,7 @@ This tool parses PAN configuration exports/logs to help network administrators u
 ## Installation
 
 ### Prerequisites
-- Go 1.20 or later (as specified in go.mod)
+- Go 1.23 or later (as specified in go.mod)
 
 ### Quick Setup
 ```bash
@@ -39,29 +51,35 @@ This tool parses PAN configuration exports/logs to help network administrators u
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
 
-# Build the application (creates modular binary)
+# Build the application
 npm run setup
-# or manually: go build -o pan-parser main.go
-
-# Quick build without npm
-npm run build
+# Alternative: go build -o pan-parser main.go
 
 # Verify installation and show help
-npm run test
-# or: ./pan-parser -h
+npm run help
+# Alternative: ./pan-parser -h
 ```
 
 ## Usage
 
-### Interactive Mode (Recommended)
+### TUI Mode (Recommended - NEW!)
 ```bash
-./pan-parser -i
-# or via npm: npm run parser
-
-# Quick interactive run
-npm run run
+npm run tui
+# Alternative: ./pan-parser --tui
 ```
-The interactive mode provides a guided experience with colored terminal output, progress reporting, and prompts for all required inputs. Features multi-address analysis and address group command generation.
+The new **Terminal User Interface (TUI)** provides a modern, intuitive experience with:
+- **Clean visual interface** with professional blue/purple color scheme
+- **Multi-select operations** - Select and execute multiple post-analysis operations
+- **Guided workflow** - File selection → Address input → Analysis → Operations menu
+- **Real-time feedback** - Progress indicators and status messages
+- **Silent processing** - No output leakage outside the TUI window
+
+### Interactive Mode (Classic)
+```bash
+npm run parser
+# Alternative: ./pan-parser -i
+```
+The classic interactive mode provides a guided command-line experience with colored terminal output, progress reporting, and prompts for all required inputs.
 
 ### Command Line Mode
 ```bash
@@ -78,12 +96,31 @@ The interactive mode provides a guided experience with colored terminal output, 
 ./pan-parser -h
 ```
 
+### Quick Reference
+
+**Recommended npm commands:**
+```bash
+npm run setup    # Build the application
+npm run tui      # Launch modern TUI interface
+npm run parser   # Launch classic interactive mode
+npm run help     # Show help and command options
+```
+
+**Direct command line usage:**
+```bash
+./pan-parser --tui                    # Modern TUI interface
+./pan-parser -i                       # Classic interactive mode
+./pan-parser -a <address> -l <file>   # Direct analysis
+./pan-parser -h                       # Show help
+```
+
 ### Command Line Options
 - `-a`: Address name(s) to search for (comma-separated for multiple)
 - `-l`: Path to the PAN configuration log file (default: "default.log")
 - `-o`: Output file name (optional)
 - `-c`: Path to JSON configuration file
-- `-i`: Run in interactive mode
+- `-i`: Run in interactive mode (classic)
+- `--tui`: Run in TUI mode (modern interface)
 - `-h`: Show help
 
 ## Input Format
@@ -95,43 +132,107 @@ set shared address-group "web-servers" static [ web-server-01 web-server-02 ]
 set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
 ```
 
+## TUI Interface Features
+
+The modern Terminal User Interface provides an intuitive workflow with multiple screens:
+
+### 🎮 **Navigation Controls**
+- **Arrow Keys / j,k** - Navigate menu options
+- **Space** - Toggle selection (checkboxes)
+- **Enter** - Confirm selection or execute action
+- **Esc** - Go back to previous screen
+- **Ctrl+C / q** - Quit application
+
+### 📱 **Screen Flow**
+1. **Main Menu** - Choose "Analyze Configuration File" or "Exit"
+2. **File Selection** - Enter path to PAN configuration file (with auto-completion)
+3. **Address Input** - Enter single or multiple address names (comma-separated)
+4. **Processing** - Real-time progress with silent background processing
+5. **Additional Options** - Multi-select operations menu:
+   - ☑️ Generate Address Group Commands
+   - ☑️ Generate Cleanup Commands
+   - Execute Selected Operations
+   - Return to Main Menu
+
+### ✨ **Key Benefits**
+- **Multi-Select Operations** - Run multiple post-analysis operations without restarting
+- **Perfect Alignment** - Clean, professional interface with consistent spacing
+- **Smart Navigation** - Automatically skips separator lines
+- **Silent Processing** - No output interference with the TUI display
+- **Real-time Feedback** - Status messages and operation completion notifications
+
 ## Output Format
 
 Results are saved in a structured YAML-like format with sections for:
 
 ```yaml
-# 🔥 PAN Log Parser Analysis Report v2.0 (Go Edition)
-# 🎯 Target Address Object: web-server-01
-# 📊 Configuration Lines Found: 15
-# 🔗 Total Relationships: 8
+# ═══════════════════════════════════════════════════════════════
+# PAN Log Parser Analysis Report v2.0 (Go Edition)
+# ═══════════════════════════════════════════════════════════════
+# Target Address Object: web-server-01
+# Configuration Lines Found: 12
+# Total Relationships: 8
+# ═══════════════════════════════════════════════════════════════
 
-# 📋 MATCHING CONFIGURATION LINES
-  1. set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
-  2. set shared address-group "web-servers" static [ web-server-01 web-server-02 ]
+# MATCHING CONFIGURATION LINES
+Found [12] lines containing 'web-server-01':
+---
+1. set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
+2. set shared address-group "web-servers" static [ web-server-01 web-server-02 ]
+3. set device-group DG-Production pre-rulebase security rules Allow-Web-Traffic source [ web-server-01 ]
+---
 
-# 🏢 DEVICE GROUPS
-  📌 1. DG-Production
-  📌 2. DG-Staging
+# DEVICE GROUPS
+Found [2] items:
+---
+1. DG-Production
+2. DG-Staging
+---
 
-# 🛡️ DIRECT SECURITY RULES
-  DG-Production:
-    - Allow-Web-Traffic  # contains address in source
-    - Outbound-HTTPS  # contains address in destination
+# DIRECT SECURITY RULES
+Found [2] items:
+---
+1. Allow-Web-Traffic (device-group - DG-Production):
+   └─ Command: set device-group DG-Production pre-rulebase security rules Allow-Web-Traffic source [ web-server-01 ]
+   └─ Context: contains address in source
+   └─ Device Group: DG-Production
+2. Outbound-HTTPS (device-group - DG-Production):
+   └─ Command: set device-group DG-Production pre-rulebase security rules Outbound-HTTPS destination [ web-server-01 ]
+   └─ Context: contains address in destination
+   └─ Device Group: DG-Production
+---
 
-# 📂 ADDRESS GROUPS
-  📂 1. web-servers (shared scope):
-     └─ Command: set shared address-group web-servers static [ web-server-01 web-server-02 ]
-     └─ Members: [ web-server-01 web-server-02 ]
+# ADDRESS GROUPS
+Found [1] items containing 'web-server-01':
+---
+1. web-servers (shared scope):
+   └─ Command: set shared address-group web-servers static [ web-server-01 web-server-02 ]
+   └─ Members: [ web-server-01 web-server-02 ]
+---
 
-# 🔗 INDIRECT SECURITY RULES (VIA ADDRESS GROUPS)
-  DG-Production:
-    - Allow-Internal-Traffic  # references shared address-group 'web-servers' that contains web-server-01
+# INDIRECT SECURITY RULES (VIA ADDRESS GROUPS)
+Found [1] items:
+---
+1. Allow-Internal-Traffic (device-group - DG-Production):
+   └─ Command: set device-group DG-Production pre-rulebase security rules Allow-Internal-Traffic source [ web-servers ]
+   └─ Context: via address-group 'web-servers'
+   └─ Device Group: DG-Production
+---
 
-# ⚠️ REDUNDANT ADDRESSES
-  🔄 1. web-server-backup:
-     └─ IP/Netmask: 192.168.1.10/32
-     └─ Scope: DG-Production
-     └─ Note: Same IP as target address - potential duplicate
+# REDUNDANT ADDRESSES
+Found [1] items with identical ip/netmask:
+---
+1. web-server-backup:
+   └─ IP/Netmask: 192.168.1.10/32
+   └─ Scope: DG-Production
+   └─ Note: Same IP as target address - potential duplicate
+---
+
+# ═══════════════════════════════════════════════════════════════
+# Analysis Complete
+# Generated by: PAN Log Parser Tool v2.0 (Go Edition)
+# Advanced Palo Alto Networks Configuration Analysis
+# ═══════════════════════════════════════════════════════════════
 ```
 
 ## Configuration File Format
@@ -172,32 +273,45 @@ Expected performance improvements over traditional line-by-line parsing:
 │   └── models.go          # Data structures and type definitions
 ├── processor/
 │   ├── processor.go       # Core processing engine
-│   └── analysis.go        # Advanced analysis algorithms
+│   ├── analysis.go        # Advanced analysis algorithms
+│   └── cleanup.go         # Redundant address cleanup logic
+├── tui/                   # Modern Terminal User Interface (NEW!)
+│   ├── tui.go            # TUI application entry point
+│   ├── models.go         # TUI state management and logic
+│   ├── styles.go         # Professional color scheme and styling
+│   └── commands.go       # Background command execution
 ├── ui/
-│   ├── display.go         # Terminal display and formatting
-│   └── interactive.go     # Interactive mode implementation
+│   ├── display.go         # Classic terminal display and formatting
+│   └── interactive.go     # Classic interactive mode implementation
 ├── utils/
 │   ├── utils.go          # Utility functions
 │   └── writer.go         # Output generation and file writing
 ├── setup.sh              # Build script
 ├── package.json          # NPM wrapper commands
-├── go.mod               # Go module definition
+├── go.mod               # Go module definition with Bubble Tea
 └── outputs/             # Generated analysis results
 ```
 
 ### Component Responsibilities
 - **Main**: Command-line interface, flag parsing, and orchestration
 - **Models**: Type-safe data structures, regex patterns, result models
-- **Processor**: Core parsing engine, pattern matching, relationship analysis
-- **UI**: User interface layer with color formatting and interactive mode
+- **Processor**: Core parsing engine, pattern matching, relationship analysis, silent mode support
+- **TUI**: Modern Terminal User Interface with Bubble Tea framework, multi-select operations, professional styling
+- **UI**: Classic user interface layer with color formatting and interactive mode
 - **Utils**: Reusable utilities for formatting, parsing, and file operations
 
 ## Build Requirements
 
-- **Go 1.20+**: Required for building the application (as specified in go.mod)
-- **No Runtime Dependencies**: Uses only Go standard library
+- **Go 1.23+**: Required for building the application (as specified in go.mod)
+- **Bubble Tea Framework**: Modern TUI framework for the new interface
+- **Lipgloss**: Styling library for professional terminal UI appearance
 
-The tool is completely self-contained after building - no external dependencies required.
+### Dependencies
+- **Runtime**: Minimal external dependencies - primarily Bubble Tea ecosystem
+- **Core Logic**: Uses only Go standard library for processing
+- **TUI**: Bubble Tea, Lipgloss for modern terminal interface
+
+The tool is self-contained after building with all dependencies statically linked.
 
 ## License
 
