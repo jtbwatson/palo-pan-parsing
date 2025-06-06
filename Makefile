@@ -53,13 +53,13 @@ clean:
 	@rm -f pan-parser
 	@echo "✅ Clean complete"
 
-# Run in TUI mode
-tui: build
-	@./pan-parser --tui
-
-# Run in interactive mode
+# Run in default TUI mode
 run: build
-	@./pan-parser -i
+	@./pan-parser
+
+# Run in verbose interactive mode
+verbose: build
+	@./pan-parser --verbose
 
 # Show help
 help:
@@ -70,11 +70,12 @@ help:
 	@echo "  install   - Build and install globally"
 	@echo "  uninstall - Remove from system PATH"
 	@echo "  clean     - Remove build artifacts"
-	@echo "  tui       - Build and run TUI mode"
-	@echo "  run       - Build and run interactive mode"
+	@echo "  run       - Build and run (default TUI mode)"
+	@echo "  verbose   - Build and run verbose interactive mode"
 	@echo "  help      - Show this help message"
 	@echo ""
 	@echo "Usage examples:"
 	@echo "  make install    # Install globally so you can use 'pan-parser' anywhere"
-	@echo "  make tui        # Quick run TUI mode"
+	@echo "  make run        # Quick run TUI mode (default)"
+	@echo "  make verbose    # Run classic interactive mode"
 	@echo "  make clean      # Clean up"

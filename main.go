@@ -21,8 +21,7 @@ func main() {
 		logfile     = flag.String("l", "default.log", "Path to the log file")
 		outputFlag  = flag.String("o", "", "Output file name")
 		configFile  = flag.String("c", "", "Path to configuration file")
-		interactive = flag.Bool("i", false, "Run in interactive mode")
-		tuiMode     = flag.Bool("tui", false, "Run in TUI mode (Bubble Tea interface)")
+		verbose     = flag.Bool("verbose", false, "Run in verbose interactive mode (classic)")
 		help        = flag.Bool("h", false, "Show help")
 	)
 
@@ -31,6 +30,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "A high-performance tool for analyzing Palo Alto Networks configuration logs\n")
 		fmt.Fprintf(os.Stderr, "to find references to specific IP address objects. Supports both direct and indirect\n")
 		fmt.Fprintf(os.Stderr, "references through address groups, security rules, NAT rules, and device groups.\n\n")
+		fmt.Fprintf(os.Stderr, "By default, runs in modern TUI mode. Use --verbose for classic interactive mode.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Flags:\n")
 		flag.PrintDefaults()
@@ -43,12 +43,13 @@ func main() {
 		return
 	}
 
-	if *tuiMode {
-		runTUIMode()
-	} else if *interactive || (*addressFlag == "" && *configFile == "") {
+	if *verbose {
 		runInteractiveMode()
-	} else {
+	} else if *addressFlag != "" || *configFile != "" {
 		runCommandLineMode(*addressFlag, *logfile, *outputFlag, *configFile)
+	} else {
+		// Default to TUI mode when no specific arguments provided
+		runTUIMode()
 	}
 }
 

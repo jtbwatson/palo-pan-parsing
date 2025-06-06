@@ -10,8 +10,8 @@ git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
 make install
 
-# 2. Use from anywhere
-pan-parser --tui
+# 2. Use from anywhere (runs TUI mode by default)
+pan-parser
 ```
 
 ### Alternative Installation Methods
@@ -24,14 +24,15 @@ npm run setup  # Follow prompts for global installation
 **Using Makefile (advanced):**
 ```bash
 make install   # Install globally
-make tui       # Quick run TUI mode  
+make run       # Quick run default mode (TUI)
+make verbose   # Quick run verbose mode  
 make uninstall # Remove from system
 ```
 
 **Local installation only:**
 ```bash
 npm run setup  # Choose 'N' for local only
-./pan-parser --tui
+./pan-parser
 ```
 
 ## What It Does
@@ -82,30 +83,30 @@ npm run help
 
 ## Usage
 
-### TUI Mode (Recommended - NEW!)
+### Default Mode (TUI - Recommended)
 ```bash
 # If installed globally:
-pan-parser --tui
+pan-parser
 
 # If local installation:
-./pan-parser --tui
-# or: npm run tui
+./pan-parser
+# or: npm run start
 ```
-The new **Terminal User Interface (TUI)** provides a modern, intuitive experience with:
+By default, the tool runs in **Terminal User Interface (TUI)** mode, providing a modern, intuitive experience with:
 - **Clean visual interface** with professional blue/purple color scheme
 - **Multi-select operations** - Select and execute multiple post-analysis operations
 - **Guided workflow** - File selection → Address input → Analysis → Operations menu
 - **Real-time feedback** - Progress indicators and status messages
 - **Silent processing** - No output leakage outside the TUI window
 
-### Interactive Mode (Classic)
+### Verbose Mode (Classic Interactive)
 ```bash
 # If installed globally:
-pan-parser -i
+pan-parser --verbose
 
 # If local installation:
-./pan-parser -i
-# or: npm run parser
+./pan-parser --verbose
+# or: npm run verbose
 ```
 The classic interactive mode provides a guided command-line experience with colored terminal output, progress reporting, and prompts for all required inputs.
 
@@ -129,15 +130,15 @@ pan-parser -h
 **Recommended npm commands:**
 ```bash
 npm run setup    # Build the application
-npm run tui      # Launch modern TUI interface
-npm run parser   # Launch classic interactive mode
+npm run start    # Launch default TUI interface
+npm run verbose  # Launch classic verbose mode
 npm run help     # Show help and command options
 ```
 
 **Direct command line usage:**
 ```bash
-./pan-parser --tui                    # Modern TUI interface
-./pan-parser -i                       # Classic interactive mode
+./pan-parser                          # Default TUI interface
+./pan-parser --verbose                # Classic verbose mode
 ./pan-parser -a <address> -l <file>   # Direct analysis
 ./pan-parser -h                       # Show help
 ```
@@ -147,8 +148,7 @@ npm run help     # Show help and command options
 - `-l`: Path to the PAN configuration log file (default: "default.log")
 - `-o`: Output file name (optional)
 - `-c`: Path to JSON configuration file
-- `-i`: Run in interactive mode (classic)
-- `--tui`: Run in TUI mode (modern interface)
+- `--verbose`: Run in verbose interactive mode (classic)
 - `-h`: Show help
 
 ## Input Format

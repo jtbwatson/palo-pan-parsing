@@ -4,8 +4,8 @@
   "description": "High-performance PAN log parser (Go Edition)",
   "scripts": {
     "setup": "bash setup.sh",
-    "tui": "./pan-parser --tui",
-    "parser": "./pan-parser -i",
+    "start": "./pan-parser",
+    "verbose": "./pan-parser --verbose",
     "help": "./pan-parser -h"
   }
 }

@@ -28,8 +28,8 @@ chmod +x pan-parser
 
 echo ""
 echo "🚀 Setup complete! You can now use the PAN parser:"
-echo "   • TUI mode: ./pan-parser --tui"
-echo "   • Interactive mode: ./pan-parser -i"
+echo "   • Default (TUI): ./pan-parser"
+echo "   • Verbose mode: ./pan-parser --verbose"
 echo "   • Command line: ./pan-parser -a <address> -l <logfile>"
 echo "   • Help: ./pan-parser -h"
 echo ""
@@ -44,7 +44,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     if [ -w "/usr/local/bin" ]; then
         sudo cp pan-parser /usr/local/bin/
         echo "✅ Installed to /usr/local/bin/pan-parser"
-        echo "   You can now use: pan-parser --tui"
+        echo "   You can now use: pan-parser"
     elif [ -d "$HOME/.local/bin" ]; then
         mkdir -p "$HOME/.local/bin"
         cp pan-parser "$HOME/.local/bin/"
@@ -66,10 +66,10 @@ fi
 echo ""
 
 # Run the parser if requested
-if [[ "$1" == "--with-parser" ]]; then
-    echo "🎯 Starting interactive parser..."
-    ./pan-parser -i
-elif [[ "$1" == "--with-tui" ]]; then
-    echo "🎯 Starting TUI mode..."
-    ./pan-parser --tui
+if [[ "$1" == "--with-run" ]]; then
+    echo "🎯 Starting default mode (TUI)..."
+    ./pan-parser
+elif [[ "$1" == "--with-verbose" ]]; then
+    echo "🎯 Starting verbose mode..."
+    ./pan-parser --verbose
 fi
