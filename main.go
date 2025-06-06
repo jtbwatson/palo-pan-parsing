@@ -148,7 +148,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		return fmt.Errorf("error accessing file: %w", err)
 	}
 
-	fmt.Printf("  📄 Loading configuration file into memory: %s (%s)\n",
+	fmt.Printf("  Loading configuration file into memory: %s (%s)\n",
 		colorHighlight(fileInfo.Name()),
 		formatBytes(fileInfo.Size()))
 
@@ -159,7 +159,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	}
 	defer file.Close()
 
-	fmt.Println("  🧠 Reading file into memory...")
+	fmt.Println("  Reading file into memory...")
 
 	// Read all lines into memory
 	var allLines []string
@@ -181,9 +181,9 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	}
 
 	totalLines := len(allLines)
-	fmt.Printf("  📊 Loaded %s configuration lines into memory\n",
+	fmt.Printf("  Loaded %s configuration lines into memory\n",
 		colorHighlight(formatNumber(totalLines)))
-	fmt.Println("  ⚡ Processing in-memory for maximum performance...")
+	fmt.Println("  Processing in-memory for maximum performance...")
 
 	// Note: Using simple substring matching to match Python behavior
 	// This ensures addresses like "someserver-rebuild" match when searching for "someserver"
@@ -257,18 +257,18 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		}
 	}
 
-	fmt.Println(colorSuccess("  ✅ Initial scan complete"))
+	fmt.Println(colorSuccess("  Initial scan complete"))
 
 	// Process redundant addresses
-	fmt.Println(colorInfo("  🔍 Analyzing redundant address objects..."))
+	fmt.Println(colorInfo("  Analyzing redundant address objects..."))
 	p.findRedundantAddresses(ipToAddresses, addressSet)
 
 	// Find indirect security rules (using in-memory data)
-	fmt.Println(colorInfo("  🔗 Discovering indirect security rule relationships..."))
+	fmt.Println(colorInfo("  Discovering indirect security rule relationships..."))
 	p.findIndirectRulesMemory(allLines, addresses)
 
 	// Find nested address groups (using in-memory data)
-	fmt.Println(colorInfo("  📂 Mapping nested address group hierarchies..."))
+	fmt.Println(colorInfo("  Mapping nested address group hierarchies..."))
 	p.findNestedAddressGroupsMemory(allLines, addresses)
 
 	return nil
@@ -799,30 +799,30 @@ func main() {
 func runInteractiveMode() {
 	clearScreen()
 	printBanner()
-	printSectionHeader("Configuration Analysis Setup", "⚙️")
+	printSectionHeader("Configuration Analysis Setup", "")
 	fmt.Println(colorInfo("  Welcome to the advanced PAN configuration analyzer!"))
 	fmt.Println(colorInfo("  This tool will help you discover complex relationships"))
 	fmt.Println(colorInfo("  in your Palo Alto Networks configuration logs."))
 	printSectionFooter()
 
 	// Get log file
-	printSectionHeader("Log File Selection", "📁")
+	printSectionHeader("Log File Selection", "")
 	defaultLog := "default.log"
-	configFile := promptInput(fmt.Sprintf("🔍 Enter path to your PAN configuration log [%s]", defaultLog), defaultLog)
+	configFile := promptInput(fmt.Sprintf("Enter path to your PAN configuration log [%s]", defaultLog), defaultLog)
 	printSectionFooter()
 
 	// Get addresses
-	printSectionHeader("Address Object Selection", "🎯")
-	fmt.Println(colorInfo("  📝 You can analyze multiple address objects simultaneously"))
-	fmt.Println(colorInfo("  📌 For multiple addresses, separate them with commas"))
-	fmt.Printf(colorHighlight("  💡 Example: %s\n"), "webserver1,dbserver2,jumphost3")
+	printSectionHeader("Address Object Selection", "")
+	fmt.Println(colorInfo("  You can analyze multiple address objects simultaneously"))
+	fmt.Println(colorInfo("  For multiple addresses, separate them with commas"))
+	fmt.Printf(colorHighlight("  Example: %s\n"), "webserver1,dbserver2,jumphost3")
 	fmt.Println()
 
 	var addressInput string
 	for addressInput == "" {
-		addressInput = promptInput("🔍 Enter address object name(s) to analyze", "")
+		addressInput = promptInput("Enter address object name(s) to analyze", "")
 		if addressInput == "" {
-			fmt.Println(colorError("  ❌ At least one address name is required!"))
+			fmt.Println(colorError("  At least one address name is required!"))
 		}
 	}
 
@@ -830,12 +830,12 @@ func runInteractiveMode() {
 	printSectionFooter()
 
 	// Run analysis
-	printSectionHeader("Configuration Analysis Engine", "🚀")
-	fmt.Printf(colorInfo("  📖 Loading configuration file: %s\n"), colorHighlight(configFile))
-	fmt.Printf(colorInfo("  🔍 Analyzing %s address object(s): %s\n"),
+	printSectionHeader("Configuration Analysis Engine", "")
+	fmt.Printf(colorInfo("  Loading configuration file: %s\n"), colorHighlight(configFile))
+	fmt.Printf(colorInfo("  Analyzing %s address object(s): %s\n"),
 		colorHighlight(formatNumber(len(addresses))),
 		colorHighlight(strings.Join(addresses, ", ")))
-	fmt.Println(colorInfo("  🧠 Initializing deep relationship analysis..."))
+	fmt.Println(colorInfo("  Initializing deep relationship analysis..."))
 
 	// Process file once for all addresses
 	processor := NewPANLogProcessor()
@@ -844,19 +844,19 @@ func runInteractiveMode() {
 		return
 	}
 
-	fmt.Println(colorSuccess("  ✅ Deep relationship analysis complete!"))
+	fmt.Println(colorSuccess("  Deep relationship analysis complete!"))
 	printSectionFooter()
 
 	// Process results for each address
 	if len(addresses) > 1 {
-		printSectionHeader(fmt.Sprintf("Multi-Address Analysis (%d objects)", len(addresses)), "🔄")
-		fmt.Printf(colorInfo("  📊 Ready to process: %s\n"), colorHighlight(strings.Join(addresses, ", ")))
-		fmt.Println(colorInfo("  📁 Choose your preferred output format:"))
+		printSectionHeader(fmt.Sprintf("Multi-Address Analysis (%d objects)", len(addresses)), "")
+		fmt.Printf(colorInfo("  Ready to process: %s\n"), colorHighlight(strings.Join(addresses, ", ")))
+		fmt.Println(colorInfo("  Choose your preferred output format:"))
 		fmt.Printf(colorInfo("     • %s: Combined report with all results\n"), colorHighlight("Single file"))
 		fmt.Printf(colorInfo("     • %s: Individual reports for each address\n"), colorHighlight("Multiple files"))
 		fmt.Println()
 
-		useSingleFile := promptInput("🗃️  Use a single combined output file? (y/n)", "n") == "y"
+		useSingleFile := promptInput("Use a single combined output file? (y/n)", "n") == "y"
 		printSectionFooter()
 
 		if useSingleFile {
@@ -900,12 +900,12 @@ func runInteractiveMode() {
 		ProcessAddress(addresses[0], processor, true, "")
 	}
 
-	printSectionHeader("Analysis Complete", "🎉")
-	fmt.Println(colorSuccess("  🎊 Analysis session completed successfully!"))
-	fmt.Println(colorInfo("  💡 Your PAN configuration analysis is ready for review"))
-	fmt.Println(colorDimText("  🔧 Tool: PAN Log Parser v2.0 (Go Edition) | Advanced Configuration Analysis"))
+	printSectionHeader("Analysis Complete", "")
+	fmt.Println(colorSuccess("  Analysis session completed successfully!"))
+	fmt.Println(colorInfo("  Your PAN configuration analysis is ready for review"))
+	fmt.Println(colorDimText("  Tool: PAN Log Parser v2.0 (Go Edition) | Advanced Configuration Analysis"))
 	printSectionFooter()
-	fmt.Println(colorTitle("\n✨ Thank you for using the PAN Log Parser Tool! ✨"))
+	fmt.Println(colorTitle("\nThank you for using the PAN Log Parser Tool!"))
 }
 
 func runCommandLineMode(addressFlag, logfile, output, configFile string) {
@@ -1021,9 +1021,9 @@ func clearScreen() {
 
 func printBanner() {
 	fmt.Println(colorTitle("    ╔══════════════════════════════════════════════════╗"))
-	fmt.Print(colorTitle("    ║  🔥 PAN Log Parser Tool "))
+	fmt.Print(colorTitle("    ║  PAN Log Parser Tool "))
 	fmt.Print(colorHighlight("v2.0"))
-	fmt.Println(colorTitle("                     ║"))
+	fmt.Println(colorTitle("                        ║"))
 	fmt.Print(colorTitle("    ║  "))
 	fmt.Print(colorInfo("Advanced Palo Alto Networks Configuration       "))
 	fmt.Println(colorTitle("║"))
@@ -1031,8 +1031,8 @@ func printBanner() {
 	fmt.Print(colorInfo("Analysis & Address Object Discovery Tool        "))
 	fmt.Println(colorTitle("║"))
 	fmt.Println(colorTitle("    ╚══════════════════════════════════════════════════╝"))
-	fmt.Println(colorDimText("    🚀 Ready to analyze your PAN configurations with precision!"))
-	fmt.Println(colorDimText("    📋 Supports nested address groups, security rules & more"))
+	fmt.Println(colorDimText("    Ready to analyze your PAN configurations with precision!"))
+	fmt.Println(colorDimText("    Supports nested address groups, security rules & more"))
 }
 
 func printSectionHeader(title, icon string) {
@@ -1139,19 +1139,19 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 
 	// Enhanced header with metadata
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# 🔥 PAN Log Parser Analysis Report v2.0 (Go Edition)\n")
+	fmt.Fprintf(file, "# PAN Log Parser Analysis Report v2.0 (Go Edition)\n")
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# 🎯 Target Address Object: %s\n", addressName)
-	fmt.Fprintf(file, "# 📊 Configuration Lines Found: %d\n", len(matchingLines))
+	fmt.Fprintf(file, "# Target Address Object: %s\n", addressName)
+	fmt.Fprintf(file, "# Configuration Lines Found: %d\n", len(matchingLines))
 
 	totalRelationships := len(itemsDict.DeviceGroups) + len(itemsDict.DirectSecurityRules) +
 		len(itemsDict.IndirectSecurityRules) + len(itemsDict.AddressGroups) +
 		len(itemsDict.NATRules) + len(itemsDict.ServiceGroups) + len(itemsDict.RedundantAddresses)
-	fmt.Fprintf(file, "# 🔗 Total Relationships: %d\n", totalRelationships)
+	fmt.Fprintf(file, "# Total Relationships: %d\n", totalRelationships)
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
 
 	// Matching configuration lines section
-	fmt.Fprintf(file, "# 📋 MATCHING CONFIGURATION LINES\n")
+	fmt.Fprintf(file, "# MATCHING CONFIGURATION LINES\n")
 	fmt.Fprintf(file, "# Found %d lines containing '%s'\n", len(matchingLines), addressName)
 	fmt.Fprintf(file, "---\n\n")
 
@@ -1165,13 +1165,13 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 
 	// Category sections with enhanced formatting
 	categoryIcons := map[string]string{
-		"Device Groups":                                "🏢",
-		"Direct Security Rules":                        "🛡️",
-		"Indirect Security Rules (via Address Groups)": "🔗",
-		"Address Groups":                               "📂",
-		"NAT Rules":                                    "🌐",
-		"Service Groups":                               "⚙️",
-		"Redundant Addresses":                          "⚠️",
+		"Device Groups":                                "",
+		"Direct Security Rules":                        "",
+		"Indirect Security Rules (via Address Groups)": "",
+		"Address Groups":                               "",
+		"NAT Rules":                                    "",
+		"Service Groups":                               "",
+		"Redundant Addresses":                          "",
 	}
 
 	// Write each category
@@ -1185,7 +1185,7 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 
 	// Add footer
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# 🎉 Analysis Complete\n")
+	fmt.Fprintf(file, "# Analysis Complete\n")
 	fmt.Fprintf(file, "# Generated by: PAN Log Parser Tool v2.0 (Go Edition)\n")
 	fmt.Fprintf(file, "# Advanced Palo Alto Networks Configuration Analysis\n")
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
@@ -1195,7 +1195,7 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 
 func writeCategory(file *os.File, category, icon string, items []string) {
 	count := len(items)
-	fmt.Fprintf(file, "\n# %s %s\n", icon, strings.ToUpper(category))
+	fmt.Fprintf(file, "\n# %s\n", strings.ToUpper(category))
 	fmt.Fprintf(file, "# Found: %d item", count)
 	if count != 1 {
 		fmt.Fprintf(file, "s")
@@ -1204,17 +1204,17 @@ func writeCategory(file *os.File, category, icon string, items []string) {
 
 	if count > 0 {
 		for i, item := range items {
-			fmt.Fprintf(file, "  📌 %d. %s\n", i+1, item)
+			fmt.Fprintf(file, "  %d. %s\n", i+1, item)
 		}
 	} else {
-		fmt.Fprintf(file, "  💭 None discovered\n")
+		fmt.Fprintf(file, "  None discovered\n")
 	}
 	fmt.Fprintf(file, "\n")
 }
 
 func writeSecurityRulesCategory(file *os.File, category, icon string, items []string) {
 	count := len(items)
-	fmt.Fprintf(file, "\n# %s %s\n", icon, strings.ToUpper(category))
+	fmt.Fprintf(file, "\n# %s\n", strings.ToUpper(category))
 	fmt.Fprintf(file, "# Found: %d item", count)
 	if count != 1 {
 		fmt.Fprintf(file, "s")
@@ -1271,7 +1271,7 @@ func writeSecurityRulesCategory(file *os.File, category, icon string, items []st
 			fmt.Fprintf(file, "\n")
 		}
 	} else {
-		fmt.Fprintf(file, "  💭 None discovered\n")
+		fmt.Fprintf(file, "  None discovered\n")
 	}
 	fmt.Fprintf(file, "\n")
 }
@@ -1283,7 +1283,7 @@ type RuleContext struct {
 
 func writeAddressGroupsCategory(file *os.File, groups []AddressGroup) {
 	count := len(groups)
-	fmt.Fprintf(file, "\n# 📂 ADDRESS GROUPS\n")
+	fmt.Fprintf(file, "\n# ADDRESS GROUPS\n")
 	fmt.Fprintf(file, "# Found: %d item", count)
 	if count != 1 {
 		fmt.Fprintf(file, "s")
@@ -1293,24 +1293,24 @@ func writeAddressGroupsCategory(file *os.File, groups []AddressGroup) {
 	if count > 0 {
 		for i, group := range groups {
 			if group.Context == "shared" {
-				fmt.Fprintf(file, "  📂 %d. %s (shared scope):\n", i+1, group.Name)
+				fmt.Fprintf(file, "  %d. %s (shared scope):\n", i+1, group.Name)
 				fmt.Fprintf(file, "     └─ Command: set shared address-group %s static %s\n", group.Name, group.Definition)
 				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
 			} else {
-				fmt.Fprintf(file, "  📂 %d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
+				fmt.Fprintf(file, "  %d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
 				fmt.Fprintf(file, "     └─ Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
 				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
 			}
 		}
 	} else {
-		fmt.Fprintf(file, "  💭 None discovered\n")
+		fmt.Fprintf(file, "  None discovered\n")
 	}
 	fmt.Fprintf(file, "\n")
 }
 
 func writeRedundantAddressesCategory(file *os.File, addresses []RedundantAddress) {
 	count := len(addresses)
-	fmt.Fprintf(file, "\n# ⚠️ REDUNDANT ADDRESSES\n")
+	fmt.Fprintf(file, "\n# REDUNDANT ADDRESSES\n")
 	fmt.Fprintf(file, "# Found: %d item", count)
 	if count != 1 {
 		fmt.Fprintf(file, "s")
@@ -1318,15 +1318,15 @@ func writeRedundantAddressesCategory(file *os.File, addresses []RedundantAddress
 	fmt.Fprintf(file, "\n---\n")
 
 	if count > 0 {
-		fmt.Fprintf(file, "  ⚠️  Address objects with identical IP configurations:\n\n")
+		fmt.Fprintf(file, "  Address objects with identical IP configurations:\n\n")
 		for i, addr := range addresses {
-			fmt.Fprintf(file, "  🔄 %d. %s:\n", i+1, addr.Name)
+			fmt.Fprintf(file, "  %d. %s:\n", i+1, addr.Name)
 			fmt.Fprintf(file, "     └─ IP/Netmask: %s\n", addr.IPNetmask)
 			fmt.Fprintf(file, "     └─ Scope: %s\n", addr.DeviceGroup)
 			fmt.Fprintf(file, "     └─ Note: Same IP as target address - potential duplicate\n\n")
 		}
 	} else {
-		fmt.Fprintf(file, "  💭 None discovered\n")
+		fmt.Fprintf(file, "  None discovered\n")
 	}
 	fmt.Fprintf(file, "\n")
 }
@@ -1334,12 +1334,12 @@ func writeRedundantAddressesCategory(file *os.File, addresses []RedundantAddress
 // ProcessAddress processes a single address and generates results
 func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode bool, outputOverride string) bool {
 	if interactiveMode {
-		printSectionHeader(fmt.Sprintf("Analyzing Address Object: %s", address), "🎯")
+		printSectionHeader(fmt.Sprintf("Analyzing Address Object: %s", address), "")
 	}
 
 	result, exists := processor.Results[address]
 	if !exists || len(result.MatchingLines) == 0 {
-		fmt.Printf(colorWarning("  ⚠️  No matches found for '%s'\n"), address)
+		fmt.Printf(colorWarning("  WARNING: No matches found for '%s'\n"), address)
 		if interactiveMode {
 			printSectionFooter()
 		}
@@ -1347,8 +1347,8 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 	}
 
 	if interactiveMode {
-		fmt.Printf(colorSuccess("  ✅ Discovered %s configuration lines\n"), colorHighlight(formatNumber(len(result.MatchingLines))))
-		fmt.Println(colorInfo("  📝 Processing relationships and dependencies..."))
+		fmt.Printf(colorSuccess("  Discovered %s configuration lines\n"), colorHighlight(formatNumber(len(result.MatchingLines))))
+		fmt.Println(colorInfo("  Processing relationships and dependencies..."))
 	}
 
 	// Format results
@@ -1361,7 +1361,7 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 	}
 
 	if interactiveMode {
-		fmt.Printf(colorInfo("  💾 Generating comprehensive report: %s\n"), colorHighlight("outputs/"+outputFile))
+		fmt.Printf(colorInfo("  Generating comprehensive report: %s\n"), colorHighlight("outputs/"+outputFile))
 	}
 
 	err := WriteResults(outputFile, address, result.MatchingLines, itemsDict)
@@ -1371,22 +1371,22 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 	}
 
 	if interactiveMode {
-		fmt.Println(colorSuccess("  ✅ Analysis complete! Report generated successfully"))
+		fmt.Println(colorSuccess("  Analysis complete! Report generated successfully"))
 		printSectionFooter()
-		printSectionHeader("Discovery Summary", "📊")
+		printSectionHeader("Discovery Summary", "")
 	} else {
 		fmt.Printf(colorSuccess("Results written to %s\n"), outputFile)
 	}
 
 	// Enhanced summary with icons
 	categoryIcons := map[string]string{
-		"Device Groups":                                "🏢",
-		"Direct Security Rules":                        "🛡️",
-		"Indirect Security Rules (via Address Groups)": "🔗",
-		"Address Groups":                               "📂",
-		"NAT Rules":                                    "🌐",
-		"Service Groups":                               "⚙️",
-		"Redundant Addresses":                          "⚠️",
+		"Device Groups":                                "",
+		"Direct Security Rules":                        "",
+		"Indirect Security Rules (via Address Groups)": "",
+		"Address Groups":                               "",
+		"NAT Rules":                                    "",
+		"Service Groups":                               "",
+		"Redundant Addresses":                          "",
 	}
 
 	printResultsSummary("Device Groups", len(itemsDict.DeviceGroups), categoryIcons["Device Groups"])
@@ -1404,15 +1404,15 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 			len(itemsDict.NATRules) + len(itemsDict.ServiceGroups) + len(itemsDict.RedundantAddresses)
 
 		if totalFindings > 0 {
-			fmt.Printf(colorSuccess("\n🎉 Analysis revealed %s total configuration items!\n"), colorHighlight(formatNumber(totalFindings)))
-			fmt.Printf(colorInfo("📄 Detailed report saved to: %s\n"), colorHighlight("outputs/"+outputFile))
+			fmt.Printf(colorSuccess("\nAnalysis revealed %s total configuration items!\n"), colorHighlight(formatNumber(totalFindings)))
+			fmt.Printf(colorInfo("Detailed report saved to: %s\n"), colorHighlight("outputs/"+outputFile))
 
 			// Offer to generate commands for adding new address to discovered groups
 			if len(itemsDict.AddressGroups) > 0 {
 				promptAddressGroupCopy(address, itemsDict.AddressGroups)
 			}
 		} else {
-			fmt.Println(colorWarning("🤔 No configuration relationships found for this address object."))
+			fmt.Println(colorWarning("No configuration relationships found for this address object."))
 		}
 	}
 
@@ -1421,23 +1421,23 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 
 func printResultsSummary(category string, count int, icon string) {
 	if count > 0 {
-		fmt.Printf(colorSuccess("  %s %s: %s found\n"), icon, category, colorHighlight(formatNumber(count)))
+		fmt.Printf(colorSuccess("  %s: %s found\n"), category, colorHighlight(formatNumber(count)))
 	} else {
-		fmt.Printf(colorDimText("  %s %s: none found\n"), icon, category)
+		fmt.Printf(colorDimText("  %s: none found\n"), category)
 	}
 }
 
 // promptAddressGroupCopy offers to generate commands for adding a new address to discovered groups
 func promptAddressGroupCopy(originalAddress string, addressGroups []AddressGroup) {
 	fmt.Println()
-	printSectionHeader("Address Group Configuration Helper", "⚙️")
-	fmt.Printf(colorInfo("  📋 Found %s address group(s) containing '%s'\n"),
+	printSectionHeader("Address Group Configuration Helper", "")
+	fmt.Printf(colorInfo("  Found %s address group(s) containing '%s'\n"),
 		colorHighlight(formatNumber(len(addressGroups))), originalAddress)
-	fmt.Println(colorInfo("  💡 Would you like to generate commands to add a new address object"))
+	fmt.Println(colorInfo("  Would you like to generate commands to add a new address object"))
 	fmt.Println(colorInfo("     to these same groups?"))
 	fmt.Println()
 
-	response := promptInput("🔧 Generate add-to-groups commands? (y/n)", "n")
+	response := promptInput("Generate add-to-groups commands? (y/n)", "n")
 	if response != "y" && response != "Y" {
 		printSectionFooter()
 		return
@@ -1445,14 +1445,14 @@ func promptAddressGroupCopy(originalAddress string, addressGroups []AddressGroup
 
 	var newAddressName string
 	for newAddressName == "" {
-		newAddressName = promptInput("📝 Enter new address object name", "")
+		newAddressName = promptInput("Enter new address object name", "")
 		if newAddressName == "" {
-			fmt.Println(colorError("  ❌ Address name is required!"))
+			fmt.Println(colorError("  Address name is required!"))
 		}
 	}
 
 	fmt.Println()
-	fmt.Printf(colorSuccess("  ✨ Generating commands to add '%s' to discovered groups...\n"), newAddressName)
+	fmt.Printf(colorSuccess("  Generating commands to add '%s' to discovered groups...\n"), newAddressName)
 	fmt.Println()
 
 	// Generate commands for each address group
@@ -1478,12 +1478,12 @@ func promptAddressGroupCopy(originalAddress string, addressGroups []AddressGroup
 		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", newAddressName)
 		err := writeAddressGroupCommands(outputFile, originalAddress, newAddressName, commands, addressGroups)
 		if err != nil {
-			fmt.Printf(colorError("  ❌ Error writing commands file: %v\n"), err)
+			fmt.Printf(colorError("  Error writing commands file: %v\n"), err)
 		} else {
 			fmt.Println()
-			fmt.Printf(colorSuccess("  🎉 Generated %s command(s) successfully!\n"), colorHighlight(formatNumber(commandCount)))
-			fmt.Printf(colorInfo("  📄 Commands saved to: %s\n"), colorHighlight(outputFile))
-			fmt.Printf(colorInfo("  💡 Copy these commands to add '%s' to the same groups as '%s'\n"),
+			fmt.Printf(colorSuccess("  Generated %s command(s) successfully!\n"), colorHighlight(formatNumber(commandCount)))
+			fmt.Printf(colorInfo("  Commands saved to: %s\n"), colorHighlight(outputFile))
+			fmt.Printf(colorInfo("  Copy these commands to add '%s' to the same groups as '%s'\n"),
 				newAddressName, originalAddress)
 		}
 	}
@@ -1511,16 +1511,16 @@ func writeAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 
 	// Enhanced header with metadata
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# 🔥 PAN Address Group Commands Generator v2.0 (Go Edition)\n")
+	fmt.Fprintf(file, "# PAN Address Group Commands Generator v2.0 (Go Edition)\n")
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# 🎯 Original Address Object: %s\n", originalAddress)
-	fmt.Fprintf(file, "# 🆕 New Address Object: %s\n", newAddressName)
-	fmt.Fprintf(file, "# 📂 Address Groups Found: %d\n", len(addressGroups))
-	fmt.Fprintf(file, "# 🔧 Commands Generated: %d\n", len(commands))
+	fmt.Fprintf(file, "# Original Address Object: %s\n", originalAddress)
+	fmt.Fprintf(file, "# New Address Object: %s\n", newAddressName)
+	fmt.Fprintf(file, "# Address Groups Found: %d\n", len(addressGroups))
+	fmt.Fprintf(file, "# Commands Generated: %d\n", len(commands))
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
 
 	// Commands section
-	fmt.Fprintf(file, "# 🔧 GENERATED CONFIGURATION COMMANDS\n")
+	fmt.Fprintf(file, "# GENERATED CONFIGURATION COMMANDS\n")
 	fmt.Fprintf(file, "# Copy and paste these commands to add '%s' to the same address groups as '%s'\n", newAddressName, originalAddress)
 	fmt.Fprintf(file, "---\n\n")
 
@@ -1533,30 +1533,30 @@ func writeAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 	}
 
 	// Address groups details section
-	fmt.Fprintf(file, "\n# 📂 SOURCE ADDRESS GROUPS\n")
+	fmt.Fprintf(file, "\n# SOURCE ADDRESS GROUPS\n")
 	fmt.Fprintf(file, "# These are the address groups that contained '%s'\n", originalAddress)
 	fmt.Fprintf(file, "---\n\n")
 
 	if len(addressGroups) > 0 {
 		for i, group := range addressGroups {
 			if group.Context == "shared" {
-				fmt.Fprintf(file, "  📂 %d. %s (shared scope):\n", i+1, group.Name)
+				fmt.Fprintf(file, "  %d. %s (shared scope):\n", i+1, group.Name)
 				fmt.Fprintf(file, "     └─ Original Command: set shared address-group %s static %s\n", group.Name, group.Definition)
 				fmt.Fprintf(file, "     └─ New Command: set shared address-group %s static %s\n", group.Name, newAddressName)
 				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
 			} else {
-				fmt.Fprintf(file, "  📂 %d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
+				fmt.Fprintf(file, "  %d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
 				fmt.Fprintf(file, "     └─ Original Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
 				fmt.Fprintf(file, "     └─ New Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, newAddressName)
 				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
 			}
 		}
 	} else {
-		fmt.Fprintf(file, "  💭 None discovered\n")
+		fmt.Fprintf(file, "  None discovered\n")
 	}
 
 	// Instructions section
-	fmt.Fprintf(file, "# 💡 USAGE INSTRUCTIONS\n")
+	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
 	fmt.Fprintf(file, "# 1. Create the new address object '%s' with appropriate IP/FQDN configuration\n", newAddressName)
 	fmt.Fprintf(file, "# 2. Copy the commands from the 'GENERATED CONFIGURATION COMMANDS' section above\n")
 	fmt.Fprintf(file, "# 3. Paste them into your PAN configuration interface or CLI\n")
@@ -1565,7 +1565,7 @@ func writeAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 
 	// Add footer
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# 🎉 Commands Generation Complete\n")
+	fmt.Fprintf(file, "# Commands Generation Complete\n")
 	fmt.Fprintf(file, "# Generated by: PAN Log Parser Tool v2.0 (Go Edition)\n")
 	fmt.Fprintf(file, "# Advanced Palo Alto Networks Configuration Analysis\n")
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")

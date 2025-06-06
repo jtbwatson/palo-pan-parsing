@@ -10,19 +10,26 @@ This is a PAN (Palo Alto Networks) Log Parser Tool - a high-performance Go-based
 
 ### Setup and Build
 ```bash
-# Build the Go binary
+# Build the Go binary (recommended)
 npm run setup
 # or manually: go build -o pan-parser main.go
 
-# Run tests
+# Quick build without npm
+npm run build
+
+# Verify installation and show help
 npm run test
+# or: ./pan-parser -h
 ```
 
 ### Usage
 ```bash
-# Run the parser in interactive mode
+# Run the parser in interactive mode (recommended for new users)
 ./pan-parser -i
 # or via npm: npm run parser
+
+# Quick interactive run
+npm run run
 
 # Command line mode with specific parameters
 ./pan-parser -a <address_name> -l <log_file> -o <output_file>
@@ -66,14 +73,27 @@ npm run test
 
 ### Dependencies
 - **Runtime**: Zero external dependencies - uses only Go standard library
-- **Build Tools**: Go 1.19+ required
+- **Build Tools**: Go 1.20+ required (as specified in go.mod)
+
+### File Structure
+- **`main.go`**: Single-file Go application containing all functionality (~1575 lines)
+- **`setup.sh`**: Bash script for building and optionally running the parser
+- **`package.json`**: NPM wrapper scripts for convenient command execution
+- **`go.mod`**: Go module definition (minimal, no external dependencies)
+- **`outputs/`**: Auto-created directory for all result files (YAML format)
+
+### Output Format
+- **Main Results**: `{address}_results.yml` - Comprehensive analysis with structured sections
+- **Group Commands**: `{address}_add_to_groups_commands.yml` - Generated CLI commands for adding new addresses to discovered groups
+- **Multi-Address**: `multiple_addresses_results.yml` - Combined analysis when processing multiple addresses
 
 ## Development Notes
 
 - The tool supports both interactive and command-line modes
-- Interactive mode provides guided user experience with colored terminal output
-- Output files use YAML-like structured format for easy parsing
+- Interactive mode provides guided user experience with colored terminal output and progress reporting
+- All output files are automatically saved to `outputs/` directory with YAML-like structured format
 - The parser handles quoted rule names and complex PAN configuration syntax
 - Includes redundant address detection to identify objects with same IP netmask
-- Optimized for large Panorama configuration files with millions of lines
+- Optimized for large Panorama configuration files with millions of lines (in-memory processing)
 - Memory-efficient processing suitable for resource-constrained environments
+- Includes address group helper that can generate commands to add new addresses to existing groups
