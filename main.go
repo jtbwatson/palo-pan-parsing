@@ -16,16 +16,16 @@ import (
 
 // ANSI color codes for terminal output
 const (
-	colorReset     = "\033[0m"
-	colorBold      = "\033[1m"
-	colorDim       = "\033[2m"
-	colorRed       = "\033[31m"
-	colorGreen     = "\033[32m"
-	colorYellow    = "\033[33m"
-	colorBlue      = "\033[34m"
-	colorMagenta   = "\033[35m"
-	colorCyan      = "\033[36m"
-	colorWhite     = "\033[37m"
+	colorReset   = "\033[0m"
+	colorBold    = "\033[1m"
+	colorDim     = "\033[2m"
+	colorRed     = "\033[31m"
+	colorGreen   = "\033[32m"
+	colorYellow  = "\033[33m"
+	colorBlue    = "\033[34m"
+	colorMagenta = "\033[35m"
+	colorCyan    = "\033[36m"
+	colorWhite   = "\033[37m"
 )
 
 // Color helper functions
@@ -89,32 +89,32 @@ type RedundantAddress struct {
 
 // AddressResult holds all analysis results for a single address
 type AddressResult struct {
-	MatchingLines         []string                    `json:"matching_lines"`
-	DeviceGroups          map[string]bool             `json:"device_groups"`
-	DirectRules           map[string]string           `json:"direct_rules"`
-	DirectRuleContexts    map[string]string           `json:"direct_rule_contexts"`
-	IndirectRules         map[string]string           `json:"indirect_rules"`
-	IndirectRuleContexts  map[string]string           `json:"indirect_rule_contexts"`
-	AddressGroups         []AddressGroup              `json:"address_groups"`
-	NATRules              map[string]bool             `json:"nat_rules"`
-	ServiceGroups         map[string]bool             `json:"service_groups"`
-	IPNetmask             string                      `json:"ip_netmask"`
-	RedundantAddresses    []RedundantAddress          `json:"redundant_addresses"`
+	MatchingLines        []string           `json:"matching_lines"`
+	DeviceGroups         map[string]bool    `json:"device_groups"`
+	DirectRules          map[string]string  `json:"direct_rules"`
+	DirectRuleContexts   map[string]string  `json:"direct_rule_contexts"`
+	IndirectRules        map[string]string  `json:"indirect_rules"`
+	IndirectRuleContexts map[string]string  `json:"indirect_rule_contexts"`
+	AddressGroups        []AddressGroup     `json:"address_groups"`
+	NATRules             map[string]bool    `json:"nat_rules"`
+	ServiceGroups        map[string]bool    `json:"service_groups"`
+	IPNetmask            string             `json:"ip_netmask"`
+	RedundantAddresses   []RedundantAddress `json:"redundant_addresses"`
 }
 
 // NewAddressResult creates a new initialized AddressResult with pre-allocated capacity
 func NewAddressResult() *AddressResult {
 	return &AddressResult{
-		MatchingLines:         make([]string, 0, 100),        // Pre-allocate for 100 lines
-		DeviceGroups:          make(map[string]bool, 10),     // Pre-allocate for 10 device groups
-		DirectRules:           make(map[string]string, 50),   // Pre-allocate for 50 rules
-		DirectRuleContexts:    make(map[string]string, 50),   // Pre-allocate for 50 contexts
-		IndirectRules:         make(map[string]string, 20),   // Pre-allocate for 20 indirect rules
-		IndirectRuleContexts:  make(map[string]string, 20),   // Pre-allocate for 20 contexts
-		AddressGroups:         make([]AddressGroup, 0, 20),   // Pre-allocate for 20 groups
-		NATRules:              make(map[string]bool, 10),     // Pre-allocate for 10 NAT rules
-		ServiceGroups:         make(map[string]bool, 10),     // Pre-allocate for 10 service groups
-		RedundantAddresses:    make([]RedundantAddress, 0, 5), // Pre-allocate for 5 redundant addresses
+		MatchingLines:        make([]string, 0, 100),         // Pre-allocate for 100 lines
+		DeviceGroups:         make(map[string]bool, 10),      // Pre-allocate for 10 device groups
+		DirectRules:          make(map[string]string, 50),    // Pre-allocate for 50 rules
+		DirectRuleContexts:   make(map[string]string, 50),    // Pre-allocate for 50 contexts
+		IndirectRules:        make(map[string]string, 20),    // Pre-allocate for 20 indirect rules
+		IndirectRuleContexts: make(map[string]string, 20),    // Pre-allocate for 20 contexts
+		AddressGroups:        make([]AddressGroup, 0, 20),    // Pre-allocate for 20 groups
+		NATRules:             make(map[string]bool, 10),      // Pre-allocate for 10 NAT rules
+		ServiceGroups:        make(map[string]bool, 10),      // Pre-allocate for 10 service groups
+		RedundantAddresses:   make([]RedundantAddress, 0, 5), // Pre-allocate for 5 redundant addresses
 	}
 }
 
@@ -148,8 +148,8 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		return fmt.Errorf("error accessing file: %w", err)
 	}
 
-	fmt.Printf("  📄 Loading configuration file into memory: %s (%s)\n", 
-		colorHighlight(fileInfo.Name()), 
+	fmt.Printf("  📄 Loading configuration file into memory: %s (%s)\n",
+		colorHighlight(fileInfo.Name()),
 		formatBytes(fileInfo.Size()))
 
 	// Open and read file
@@ -164,7 +164,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	// Read all lines into memory
 	var allLines []string
 	scanner := bufio.NewScanner(file)
-	
+
 	// Set a large buffer size for performance with big files
 	buf := make([]byte, 64*1024)
 	scanner.Buffer(buf, 1024*1024)
@@ -181,7 +181,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	}
 
 	totalLines := len(allLines)
-	fmt.Printf("  📊 Loaded %s configuration lines into memory\n", 
+	fmt.Printf("  📊 Loaded %s configuration lines into memory\n",
 		colorHighlight(formatNumber(totalLines)))
 	fmt.Println("  ⚡ Processing in-memory for maximum performance...")
 
@@ -203,7 +203,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		// Show progress less frequently for better performance
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
 			percentage := float64(lineNum) / float64(totalLines) * 100
-			fmt.Printf(colorInfo("    Processing line %s/%s (%.0f%%)\n"), 
+			fmt.Printf(colorInfo("    Processing line %s/%s (%.0f%%)\n"),
 				formatNumber(lineNum), formatNumber(totalLines), percentage)
 			lastProgress = lineNum
 		}
@@ -233,7 +233,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		// Fast pre-filter: only check detailed patterns if line might contain addresses
 		hasAddress := false
 		var matchingAddresses []string
-		
+
 		// Fast address matching - simple substring search (matches Python behavior)
 		for addr := range addressSet {
 			// Simple substring check - matches any occurrence like Python version
@@ -488,7 +488,7 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 		// Show progress less frequently for better performance
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
 			percentage := float64(lineNum) / float64(totalLines) * 100
-			fmt.Printf(colorInfo("    Analyzing line %s/%s (%.0f%%)\n"), 
+			fmt.Printf(colorInfo("    Analyzing line %s/%s (%.0f%%)\n"),
 				formatNumber(lineNum), formatNumber(totalLines), percentage)
 			lastProgress = lineNum
 		}
@@ -504,7 +504,7 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 		// Check if line references any of our address groups (optimized)
 		var referencedGroups []ReferencedGroup
 		hasMatches := false
-		
+
 		// Pre-filter with fast string search before regex
 		for name, gp := range groupPatterns {
 			if idx := strings.Index(line, name); idx != -1 {
@@ -554,7 +554,7 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 			if rg.Info.Group.Context == "shared" {
 				context = fmt.Sprintf("references shared address-group '%s' that contains %s", rg.Name, targetAddr)
 			} else if rg.Info.Group.Context == "device-group" {
-				context = fmt.Sprintf("references address-group '%s' from device-group '%s' that contains %s", 
+				context = fmt.Sprintf("references address-group '%s' from device-group '%s' that contains %s",
 					rg.Name, rg.Info.Group.DeviceGroup, targetAddr)
 			}
 
@@ -609,7 +609,7 @@ func (p *PANLogProcessor) findNestedAddressGroupsMemory(allLines []string, addre
 		// Show progress less frequently for better performance
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
 			percentage := float64(lineNum) / float64(totalLines) * 100
-			fmt.Printf(colorInfo("    Mapping line %s/%s (%.0f%%)\n"), 
+			fmt.Printf(colorInfo("    Mapping line %s/%s (%.0f%%)\n"),
 				formatNumber(lineNum), formatNumber(totalLines), percentage)
 			lastProgress = lineNum
 		}
@@ -721,6 +721,15 @@ func parseGroupMembers(definition string) []string {
 	return members
 }
 
+// ensureOutputsDir creates the outputs directory if it doesn't exist
+func ensureOutputsDir() error {
+	outputsDir := "outputs"
+	if _, err := os.Stat(outputsDir); os.IsNotExist(err) {
+		return os.MkdirAll(outputsDir, 0755)
+	}
+	return nil
+}
+
 // formatBytes formats byte size for human readability
 func formatBytes(bytes int64) string {
 	const unit = 1024
@@ -755,7 +764,7 @@ func formatNumber(n int) string {
 // main function and CLI setup
 func main() {
 	var (
-		addressFlag  = flag.String("a", "", "Address name to search for (comma-separated for multiple)")
+		addressFlag = flag.String("a", "", "Address name to search for (comma-separated for multiple)")
 		logfile     = flag.String("l", "default.log", "Path to the log file")
 		output      = flag.String("o", "", "Output file name")
 		configFile  = flag.String("c", "", "Path to configuration file")
@@ -823,8 +832,8 @@ func runInteractiveMode() {
 	// Run analysis
 	printSectionHeader("Configuration Analysis Engine", "🚀")
 	fmt.Printf(colorInfo("  📖 Loading configuration file: %s\n"), colorHighlight(configFile))
-	fmt.Printf(colorInfo("  🔍 Analyzing %s address object(s): %s\n"), 
-		colorHighlight(formatNumber(len(addresses))), 
+	fmt.Printf(colorInfo("  🔍 Analyzing %s address object(s): %s\n"),
+		colorHighlight(formatNumber(len(addresses))),
 		colorHighlight(strings.Join(addresses, ", ")))
 	fmt.Println(colorInfo("  🧠 Initializing deep relationship analysis..."))
 
@@ -860,10 +869,10 @@ func runInteractiveMode() {
 			}
 
 			if resultsCount > 0 {
-				fmt.Printf(colorSuccess("\nProcessed %s out of %s addresses.\n"), 
-					colorHighlight(formatNumber(resultsCount)), 
+				fmt.Printf(colorSuccess("\nProcessed %s out of %s addresses.\n"),
+					colorHighlight(formatNumber(resultsCount)),
 					colorHighlight(formatNumber(len(addresses))))
-				fmt.Printf(colorSuccess("All results written to: %s\n"), colorHighlight(outputFile))
+				fmt.Printf(colorSuccess("All results written to: %s\n"), colorHighlight("outputs/"+outputFile))
 			}
 		} else {
 			resultsCount := 0
@@ -872,13 +881,13 @@ func runInteractiveMode() {
 			for _, address := range addresses {
 				if ProcessAddress(address, processor, true, "") {
 					resultsCount++
-					outputFiles = append(outputFiles, fmt.Sprintf("%s_results.yml", address))
+					outputFiles = append(outputFiles, fmt.Sprintf("outputs/%s_results.yml", address))
 				}
 			}
 
 			if resultsCount > 0 {
-				fmt.Printf(colorSuccess("\nProcessed %s out of %s addresses.\n"), 
-					colorHighlight(formatNumber(resultsCount)), 
+				fmt.Printf(colorSuccess("\nProcessed %s out of %s addresses.\n"),
+					colorHighlight(formatNumber(resultsCount)),
 					colorHighlight(formatNumber(len(addresses))))
 				fmt.Println(colorSuccess("Results written to individual files:"))
 				for _, outputFile := range outputFiles {
@@ -901,7 +910,7 @@ func runInteractiveMode() {
 
 func runCommandLineMode(addressFlag, logfile, output, configFile string) {
 	var config map[string]interface{}
-	
+
 	// Read config file if provided
 	if configFile != "" {
 		if data, err := os.ReadFile(configFile); err == nil {
@@ -982,10 +991,10 @@ func promptInput(prompt, defaultValue string) string {
 	} else {
 		fmt.Printf(colorSection("%s: "), prompt)
 	}
-	
+
 	var input string
 	fmt.Scanln(&input)
-	
+
 	if input == "" && defaultValue != "" {
 		return defaultValue
 	}
@@ -1043,26 +1052,26 @@ func printSectionFooter() {
 
 // FormattedResults represents the formatted output structure
 type FormattedResults struct {
-	DeviceGroups                   []string `json:"device_groups"`
-	DirectSecurityRules            []string `json:"direct_security_rules"`
-	IndirectSecurityRules          []string `json:"indirect_security_rules"`
-	AddressGroups                  []AddressGroup `json:"address_groups"`
-	NATRules                       []string `json:"nat_rules"`
-	ServiceGroups                  []string `json:"service_groups"`
-	RedundantAddresses             []RedundantAddress `json:"redundant_addresses"`
+	DeviceGroups          []string           `json:"device_groups"`
+	DirectSecurityRules   []string           `json:"direct_security_rules"`
+	IndirectSecurityRules []string           `json:"indirect_security_rules"`
+	AddressGroups         []AddressGroup     `json:"address_groups"`
+	NATRules              []string           `json:"nat_rules"`
+	ServiceGroups         []string           `json:"service_groups"`
+	RedundantAddresses    []RedundantAddress `json:"redundant_addresses"`
 }
 
 // FormatResults formats results for a specific address
 func (p *PANLogProcessor) FormatResults(address string) *FormattedResults {
 	result := p.Results[address]
-	
+
 	// Format device groups
 	var deviceGroups []string
 	for dg := range result.DeviceGroups {
 		deviceGroups = append(deviceGroups, dg)
 	}
 	sort.Strings(deviceGroups)
-	
+
 	// Format direct rules
 	var directRules []string
 	for rule, dg := range result.DirectRules {
@@ -1073,7 +1082,7 @@ func (p *PANLogProcessor) FormatResults(address string) *FormattedResults {
 		directRules = append(directRules, fmt.Sprintf("%s (Device Group: %s, %s)", rule, dg, context))
 	}
 	sort.Strings(directRules)
-	
+
 	// Format indirect rules
 	var indirectRules []string
 	for rule, dg := range result.IndirectRules {
@@ -1084,21 +1093,21 @@ func (p *PANLogProcessor) FormatResults(address string) *FormattedResults {
 		indirectRules = append(indirectRules, fmt.Sprintf("%s (Device Group: %s, %s)", rule, dg, context))
 	}
 	sort.Strings(indirectRules)
-	
+
 	// Format NAT rules
 	var natRules []string
 	for rule := range result.NATRules {
 		natRules = append(natRules, rule)
 	}
 	sort.Strings(natRules)
-	
+
 	// Format service groups
 	var serviceGroups []string
 	for sg := range result.ServiceGroups {
 		serviceGroups = append(serviceGroups, sg)
 	}
 	sort.Strings(serviceGroups)
-	
+
 	return &FormattedResults{
 		DeviceGroups:          deviceGroups,
 		DirectSecurityRules:   directRules,
@@ -1112,6 +1121,16 @@ func (p *PANLogProcessor) FormatResults(address string) *FormattedResults {
 
 // WriteResults writes results to file in a structured YAML-like format
 func WriteResults(outputFile, addressName string, matchingLines []string, itemsDict *FormattedResults) error {
+	// Ensure outputs directory exists
+	if err := ensureOutputsDir(); err != nil {
+		return fmt.Errorf("error creating outputs directory: %w", err)
+	}
+	
+	// Prepend outputs/ to the file path if not already there
+	if !strings.HasPrefix(outputFile, "outputs/") {
+		outputFile = "outputs/" + outputFile
+	}
+	
 	file, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %w", err)
@@ -1124,9 +1143,9 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
 	fmt.Fprintf(file, "# 🎯 Target Address Object: %s\n", addressName)
 	fmt.Fprintf(file, "# 📊 Configuration Lines Found: %d\n", len(matchingLines))
-	
-	totalRelationships := len(itemsDict.DeviceGroups) + len(itemsDict.DirectSecurityRules) + 
-		len(itemsDict.IndirectSecurityRules) + len(itemsDict.AddressGroups) + 
+
+	totalRelationships := len(itemsDict.DeviceGroups) + len(itemsDict.DirectSecurityRules) +
+		len(itemsDict.IndirectSecurityRules) + len(itemsDict.AddressGroups) +
 		len(itemsDict.NATRules) + len(itemsDict.ServiceGroups) + len(itemsDict.RedundantAddresses)
 	fmt.Fprintf(file, "# 🔗 Total Relationships: %d\n", totalRelationships)
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
@@ -1146,13 +1165,13 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 
 	// Category sections with enhanced formatting
 	categoryIcons := map[string]string{
-		"Device Groups":                        "🏢",
-		"Direct Security Rules":                "🛡️",
+		"Device Groups":                                "🏢",
+		"Direct Security Rules":                        "🛡️",
 		"Indirect Security Rules (via Address Groups)": "🔗",
-		"Address Groups":                       "📂",
-		"NAT Rules":                           "🌐",
-		"Service Groups":                      "⚙️",
-		"Redundant Addresses":                 "⚠️",
+		"Address Groups":                               "📂",
+		"NAT Rules":                                    "🌐",
+		"Service Groups":                               "⚙️",
+		"Redundant Addresses":                          "⚠️",
 	}
 
 	// Write each category
@@ -1210,7 +1229,7 @@ func writeSecurityRulesCategory(file *os.File, category, icon string, items []st
 			if len(parts) == 2 {
 				ruleName := parts[0]
 				dgPart := parts[1]
-				
+
 				// Remove only the final closing parenthesis
 				if strings.HasSuffix(dgPart, ")") {
 					dgPart = dgPart[:len(dgPart)-1]
@@ -1342,7 +1361,7 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 	}
 
 	if interactiveMode {
-		fmt.Printf(colorInfo("  💾 Generating comprehensive report: %s\n"), colorHighlight(outputFile))
+		fmt.Printf(colorInfo("  💾 Generating comprehensive report: %s\n"), colorHighlight("outputs/"+outputFile))
 	}
 
 	err := WriteResults(outputFile, address, result.MatchingLines, itemsDict)
@@ -1361,13 +1380,13 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 
 	// Enhanced summary with icons
 	categoryIcons := map[string]string{
-		"Device Groups":                        "🏢",
-		"Direct Security Rules":                "🛡️",
+		"Device Groups":                                "🏢",
+		"Direct Security Rules":                        "🛡️",
 		"Indirect Security Rules (via Address Groups)": "🔗",
-		"Address Groups":                       "📂",
-		"NAT Rules":                           "🌐",
-		"Service Groups":                      "⚙️",
-		"Redundant Addresses":                 "⚠️",
+		"Address Groups":                               "📂",
+		"NAT Rules":                                    "🌐",
+		"Service Groups":                               "⚙️",
+		"Redundant Addresses":                          "⚠️",
 	}
 
 	printResultsSummary("Device Groups", len(itemsDict.DeviceGroups), categoryIcons["Device Groups"])
@@ -1380,13 +1399,18 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 
 	if interactiveMode {
 		printSectionFooter()
-		totalFindings := len(itemsDict.DeviceGroups) + len(itemsDict.DirectSecurityRules) + 
-			len(itemsDict.IndirectSecurityRules) + len(itemsDict.AddressGroups) + 
+		totalFindings := len(itemsDict.DeviceGroups) + len(itemsDict.DirectSecurityRules) +
+			len(itemsDict.IndirectSecurityRules) + len(itemsDict.AddressGroups) +
 			len(itemsDict.NATRules) + len(itemsDict.ServiceGroups) + len(itemsDict.RedundantAddresses)
-		
+
 		if totalFindings > 0 {
 			fmt.Printf(colorSuccess("\n🎉 Analysis revealed %s total configuration items!\n"), colorHighlight(formatNumber(totalFindings)))
-			fmt.Printf(colorInfo("📄 Detailed report saved to: %s\n"), colorHighlight(outputFile))
+			fmt.Printf(colorInfo("📄 Detailed report saved to: %s\n"), colorHighlight("outputs/"+outputFile))
+
+			// Offer to generate commands for adding new address to discovered groups
+			if len(itemsDict.AddressGroups) > 0 {
+				promptAddressGroupCopy(address, itemsDict.AddressGroups)
+			}
 		} else {
 			fmt.Println(colorWarning("🤔 No configuration relationships found for this address object."))
 		}
@@ -1401,4 +1425,151 @@ func printResultsSummary(category string, count int, icon string) {
 	} else {
 		fmt.Printf(colorDimText("  %s %s: none found\n"), icon, category)
 	}
+}
+
+// promptAddressGroupCopy offers to generate commands for adding a new address to discovered groups
+func promptAddressGroupCopy(originalAddress string, addressGroups []AddressGroup) {
+	fmt.Println()
+	printSectionHeader("Address Group Configuration Helper", "⚙️")
+	fmt.Printf(colorInfo("  📋 Found %s address group(s) containing '%s'\n"),
+		colorHighlight(formatNumber(len(addressGroups))), originalAddress)
+	fmt.Println(colorInfo("  💡 Would you like to generate commands to add a new address object"))
+	fmt.Println(colorInfo("     to these same groups?"))
+	fmt.Println()
+
+	response := promptInput("🔧 Generate add-to-groups commands? (y/n)", "n")
+	if response != "y" && response != "Y" {
+		printSectionFooter()
+		return
+	}
+
+	var newAddressName string
+	for newAddressName == "" {
+		newAddressName = promptInput("📝 Enter new address object name", "")
+		if newAddressName == "" {
+			fmt.Println(colorError("  ❌ Address name is required!"))
+		}
+	}
+
+	fmt.Println()
+	fmt.Printf(colorSuccess("  ✨ Generating commands to add '%s' to discovered groups...\n"), newAddressName)
+	fmt.Println()
+
+	// Generate commands for each address group
+	var commands []string
+	commandCount := 0
+	for _, group := range addressGroups {
+		var command string
+		if group.Context == "shared" {
+			command = fmt.Sprintf("set shared address-group %s static %s", group.Name, newAddressName)
+		} else if group.Context == "device-group" {
+			command = fmt.Sprintf("set device-group %s address-group %s static %s",
+				group.DeviceGroup, group.Name, newAddressName)
+		}
+
+		if command != "" {
+			commandCount++
+			commands = append(commands, command)
+			fmt.Printf(colorListItem("  %d. %s\n"), commandCount, command)
+		}
+	}
+
+	if commandCount > 0 {
+		// Write commands to YAML file
+		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", newAddressName)
+		err := writeAddressGroupCommands(outputFile, originalAddress, newAddressName, commands, addressGroups)
+		if err != nil {
+			fmt.Printf(colorError("  ❌ Error writing commands file: %v\n"), err)
+		} else {
+			fmt.Println()
+			fmt.Printf(colorSuccess("  🎉 Generated %s command(s) successfully!\n"), colorHighlight(formatNumber(commandCount)))
+			fmt.Printf(colorInfo("  📄 Commands saved to: %s\n"), colorHighlight(outputFile))
+			fmt.Printf(colorInfo("  💡 Copy these commands to add '%s' to the same groups as '%s'\n"),
+				newAddressName, originalAddress)
+		}
+	}
+
+	printSectionFooter()
+}
+
+// writeAddressGroupCommands writes generated commands to a YAML file
+func writeAddressGroupCommands(outputFile, originalAddress, newAddressName string, commands []string, addressGroups []AddressGroup) error {
+	// Ensure outputs directory exists
+	if err := ensureOutputsDir(); err != nil {
+		return fmt.Errorf("error creating outputs directory: %w", err)
+	}
+	
+	// Prepend outputs/ to the file path if not already there
+	if !strings.HasPrefix(outputFile, "outputs/") {
+		outputFile = "outputs/" + outputFile
+	}
+	
+	file, err := os.Create(outputFile)
+	if err != nil {
+		return fmt.Errorf("error creating commands file: %w", err)
+	}
+	defer file.Close()
+
+	// Enhanced header with metadata
+	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
+	fmt.Fprintf(file, "# 🔥 PAN Address Group Commands Generator v2.0 (Go Edition)\n")
+	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
+	fmt.Fprintf(file, "# 🎯 Original Address Object: %s\n", originalAddress)
+	fmt.Fprintf(file, "# 🆕 New Address Object: %s\n", newAddressName)
+	fmt.Fprintf(file, "# 📂 Address Groups Found: %d\n", len(addressGroups))
+	fmt.Fprintf(file, "# 🔧 Commands Generated: %d\n", len(commands))
+	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
+
+	// Commands section
+	fmt.Fprintf(file, "# 🔧 GENERATED CONFIGURATION COMMANDS\n")
+	fmt.Fprintf(file, "# Copy and paste these commands to add '%s' to the same address groups as '%s'\n", newAddressName, originalAddress)
+	fmt.Fprintf(file, "---\n\n")
+
+	if len(commands) > 0 {
+		for _, command := range commands {
+			fmt.Fprintf(file, "%s\n", command)
+		}
+	} else {
+		fmt.Fprintf(file, "# No commands generated\n")
+	}
+
+	// Address groups details section
+	fmt.Fprintf(file, "\n# 📂 SOURCE ADDRESS GROUPS\n")
+	fmt.Fprintf(file, "# These are the address groups that contained '%s'\n", originalAddress)
+	fmt.Fprintf(file, "---\n\n")
+
+	if len(addressGroups) > 0 {
+		for i, group := range addressGroups {
+			if group.Context == "shared" {
+				fmt.Fprintf(file, "  📂 %d. %s (shared scope):\n", i+1, group.Name)
+				fmt.Fprintf(file, "     └─ Original Command: set shared address-group %s static %s\n", group.Name, group.Definition)
+				fmt.Fprintf(file, "     └─ New Command: set shared address-group %s static %s\n", group.Name, newAddressName)
+				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
+			} else {
+				fmt.Fprintf(file, "  📂 %d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
+				fmt.Fprintf(file, "     └─ Original Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
+				fmt.Fprintf(file, "     └─ New Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, newAddressName)
+				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
+			}
+		}
+	} else {
+		fmt.Fprintf(file, "  💭 None discovered\n")
+	}
+
+	// Instructions section
+	fmt.Fprintf(file, "# 💡 USAGE INSTRUCTIONS\n")
+	fmt.Fprintf(file, "# 1. Create the new address object '%s' with appropriate IP/FQDN configuration\n", newAddressName)
+	fmt.Fprintf(file, "# 2. Copy the commands from the 'GENERATED CONFIGURATION COMMANDS' section above\n")
+	fmt.Fprintf(file, "# 3. Paste them into your PAN configuration interface or CLI\n")
+	fmt.Fprintf(file, "# 4. Commit the changes to apply the new address group memberships\n")
+	fmt.Fprintf(file, "---\n\n")
+
+	// Add footer
+	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
+	fmt.Fprintf(file, "# 🎉 Commands Generation Complete\n")
+	fmt.Fprintf(file, "# Generated by: PAN Log Parser Tool v2.0 (Go Edition)\n")
+	fmt.Fprintf(file, "# Advanced Palo Alto Networks Configuration Analysis\n")
+	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
+
+	return nil
 }

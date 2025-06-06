@@ -15,6 +15,9 @@ pan-parser.exe
 *.log
 !default.log
 
+# Outputs
+outputs/
+
 # OS
 .DS_Store
 Thumbs.db
