@@ -46,7 +46,7 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 	fmt.Fprintf(file, "---\n")
 	if len(matchingLines) > 0 {
 		for i, line := range matchingLines {
-			fmt.Fprintf(file, "%2d. %s\n", i+1, line)
+			fmt.Fprintf(file, "%d.%s\n", i+1, line)
 		}
 	} else {
 		fmt.Fprintf(file, "No matching lines found\n")

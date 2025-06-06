@@ -2,6 +2,18 @@
 
 A high-performance, modular Go-based command-line utility that analyzes Palo Alto Networks configuration logs to find references to specific IP address objects. Features a clean architecture with separated concerns and optimized for large Panorama configuration files with millions of lines.
 
+## Quick Start
+
+```bash
+# 1. Clone and build
+git clone https://github.com/jtbwatson/palo-pan-parsing.git
+cd palo-pan-parsing
+npm run setup
+
+# 2. Launch modern TUI interface
+npm run tui
+```
+
 ## What It Does
 
 This tool parses PAN configuration exports/logs to help network administrators understand how IP address objects are being used across their firewall configuration. It identifies:
@@ -31,7 +43,7 @@ This tool parses PAN configuration exports/logs to help network administrators u
 ## Installation
 
 ### Prerequisites
-- Go 1.20 or later (as specified in go.mod)
+- Go 1.23 or later (as specified in go.mod)
 
 ### Quick Setup
 ```bash
@@ -39,24 +51,21 @@ This tool parses PAN configuration exports/logs to help network administrators u
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
 
-# Build the application (creates modular binary)
+# Build the application
 npm run setup
-# or manually: go build -o pan-parser main.go
-
-# Quick build without npm
-npm run build
+# Alternative: go build -o pan-parser main.go
 
 # Verify installation and show help
-npm run test
-# or: ./pan-parser -h
+npm run help
+# Alternative: ./pan-parser -h
 ```
 
 ## Usage
 
 ### TUI Mode (Recommended - NEW!)
 ```bash
-./pan-parser --tui
-# or via npm: npm run tui
+npm run tui
+# Alternative: ./pan-parser --tui
 ```
 The new **Terminal User Interface (TUI)** provides a modern, intuitive experience with:
 - **Clean visual interface** with professional blue/purple color scheme
@@ -67,11 +76,8 @@ The new **Terminal User Interface (TUI)** provides a modern, intuitive experienc
 
 ### Interactive Mode (Classic)
 ```bash
-./pan-parser -i
-# or via npm: npm run parser
-
-# Quick interactive run
-npm run run
+npm run parser
+# Alternative: ./pan-parser -i
 ```
 The classic interactive mode provides a guided command-line experience with colored terminal output, progress reporting, and prompts for all required inputs.
 
@@ -88,6 +94,24 @@ The classic interactive mode provides a guided command-line experience with colo
 
 # Show help
 ./pan-parser -h
+```
+
+### Quick Reference
+
+**Recommended npm commands:**
+```bash
+npm run setup    # Build the application
+npm run tui      # Launch modern TUI interface
+npm run parser   # Launch classic interactive mode
+npm run help     # Show help and command options
+```
+
+**Direct command line usage:**
+```bash
+./pan-parser --tui                    # Modern TUI interface
+./pan-parser -i                       # Classic interactive mode
+./pan-parser -a <address> -l <file>   # Direct analysis
+./pan-parser -h                       # Show help
 ```
 
 ### Command Line Options
@@ -142,38 +166,73 @@ The modern Terminal User Interface provides an intuitive workflow with multiple 
 Results are saved in a structured YAML-like format with sections for:
 
 ```yaml
-# 🔥 PAN Log Parser Analysis Report v2.0 (Go Edition)
-# 🎯 Target Address Object: web-server-01
-# 📊 Configuration Lines Found: 15
-# 🔗 Total Relationships: 8
+# ═══════════════════════════════════════════════════════════════
+# PAN Log Parser Analysis Report v2.0 (Go Edition)
+# ═══════════════════════════════════════════════════════════════
+# Target Address Object: web-server-01
+# Configuration Lines Found: 12
+# Total Relationships: 8
+# ═══════════════════════════════════════════════════════════════
 
-# 📋 MATCHING CONFIGURATION LINES
-  1. set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
-  2. set shared address-group "web-servers" static [ web-server-01 web-server-02 ]
+# MATCHING CONFIGURATION LINES
+Found [12] lines containing 'web-server-01':
+---
+1. set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
+2. set shared address-group "web-servers" static [ web-server-01 web-server-02 ]
+3. set device-group DG-Production pre-rulebase security rules Allow-Web-Traffic source [ web-server-01 ]
+---
 
-# 🏢 DEVICE GROUPS
-  📌 1. DG-Production
-  📌 2. DG-Staging
+# DEVICE GROUPS
+Found [2] items:
+---
+1. DG-Production
+2. DG-Staging
+---
 
-# 🛡️ DIRECT SECURITY RULES
-  DG-Production:
-    - Allow-Web-Traffic  # contains address in source
-    - Outbound-HTTPS  # contains address in destination
+# DIRECT SECURITY RULES
+Found [2] items:
+---
+1. Allow-Web-Traffic (device-group - DG-Production):
+   └─ Command: set device-group DG-Production pre-rulebase security rules Allow-Web-Traffic source [ web-server-01 ]
+   └─ Context: contains address in source
+   └─ Device Group: DG-Production
+2. Outbound-HTTPS (device-group - DG-Production):
+   └─ Command: set device-group DG-Production pre-rulebase security rules Outbound-HTTPS destination [ web-server-01 ]
+   └─ Context: contains address in destination
+   └─ Device Group: DG-Production
+---
 
-# 📂 ADDRESS GROUPS
-  📂 1. web-servers (shared scope):
-     └─ Command: set shared address-group web-servers static [ web-server-01 web-server-02 ]
-     └─ Members: [ web-server-01 web-server-02 ]
+# ADDRESS GROUPS
+Found [1] items containing 'web-server-01':
+---
+1. web-servers (shared scope):
+   └─ Command: set shared address-group web-servers static [ web-server-01 web-server-02 ]
+   └─ Members: [ web-server-01 web-server-02 ]
+---
 
-# 🔗 INDIRECT SECURITY RULES (VIA ADDRESS GROUPS)
-  DG-Production:
-    - Allow-Internal-Traffic  # references shared address-group 'web-servers' that contains web-server-01
+# INDIRECT SECURITY RULES (VIA ADDRESS GROUPS)
+Found [1] items:
+---
+1. Allow-Internal-Traffic (device-group - DG-Production):
+   └─ Command: set device-group DG-Production pre-rulebase security rules Allow-Internal-Traffic source [ web-servers ]
+   └─ Context: via address-group 'web-servers'
+   └─ Device Group: DG-Production
+---
 
-# ⚠️ REDUNDANT ADDRESSES
-  🔄 1. web-server-backup:
-     └─ IP/Netmask: 192.168.1.10/32
-     └─ Scope: DG-Production
-     └─ Note: Same IP as target address - potential duplicate
+# REDUNDANT ADDRESSES
+Found [1] items with identical ip/netmask:
+---
+1. web-server-backup:
+   └─ IP/Netmask: 192.168.1.10/32
+   └─ Scope: DG-Production
+   └─ Note: Same IP as target address - potential duplicate
+---
+
+# ═══════════════════════════════════════════════════════════════
+# Analysis Complete
+# Generated by: PAN Log Parser Tool v2.0 (Go Edition)
+# Advanced Palo Alto Networks Configuration Analysis
+# ═══════════════════════════════════════════════════════════════
 ```
 
 ## Configuration File Format
