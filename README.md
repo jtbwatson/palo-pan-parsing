@@ -5,13 +5,33 @@ A high-performance, modular Go-based command-line utility that analyzes Palo Alt
 ## Quick Start
 
 ```bash
-# 1. Clone and build
+# 1. Clone and install globally
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
-npm run setup
+make install
 
-# 2. Launch modern TUI interface
-npm run tui
+# 2. Use from anywhere
+pan-parser --tui
+```
+
+### Alternative Installation Methods
+
+**Using setup script (interactive):**
+```bash
+npm run setup  # Follow prompts for global installation
+```
+
+**Using Makefile (advanced):**
+```bash
+make install   # Install globally
+make tui       # Quick run TUI mode  
+make uninstall # Remove from system
+```
+
+**Local installation only:**
+```bash
+npm run setup  # Choose 'N' for local only
+./pan-parser --tui
 ```
 
 ## What It Does
@@ -64,8 +84,12 @@ npm run help
 
 ### TUI Mode (Recommended - NEW!)
 ```bash
-npm run tui
-# Alternative: ./pan-parser --tui
+# If installed globally:
+pan-parser --tui
+
+# If local installation:
+./pan-parser --tui
+# or: npm run tui
 ```
 The new **Terminal User Interface (TUI)** provides a modern, intuitive experience with:
 - **Clean visual interface** with professional blue/purple color scheme
@@ -76,23 +100,27 @@ The new **Terminal User Interface (TUI)** provides a modern, intuitive experienc
 
 ### Interactive Mode (Classic)
 ```bash
-npm run parser
-# Alternative: ./pan-parser -i
+# If installed globally:
+pan-parser -i
+
+# If local installation:
+./pan-parser -i
+# or: npm run parser
 ```
 The classic interactive mode provides a guided command-line experience with colored terminal output, progress reporting, and prompts for all required inputs.
 
 ### Command Line Mode
 ```bash
-# Search for a single address
+# If installed globally:
+pan-parser -a web-server-01 -l firewall-config.log -o results.yml
+pan-parser -a "web-server-01,db-server-02" -l config.log
+pan-parser -c config.json
+pan-parser -h
+
+# If local installation:
 ./pan-parser -a web-server-01 -l firewall-config.log -o results.yml
-
-# Search for multiple addresses (comma-separated)
-./pan-parser -a "web-server-01,db-server-02,mail-server" -l config.log
-
-# Use a configuration file
+./pan-parser -a "web-server-01,db-server-02" -l config.log
 ./pan-parser -c config.json
-
-# Show help
 ./pan-parser -h
 ```
 
