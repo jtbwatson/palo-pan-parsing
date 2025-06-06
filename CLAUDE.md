@@ -47,36 +47,56 @@ npm run run
 ## Architecture Notes
 
 ### Core Functionality
-- **Main Parser (`main.go`)**: High-performance single-file Go application optimized for large configuration files
+- **Main Entry (`main.go`)**: Command-line interface, flag parsing, and high-level orchestration
+- **Processor Package (`processor/`)**: Core parsing engine with optimized algorithms
+  - `processor.go`: Main processing logic, file parsing, and pattern matching
+  - `analysis.go`: Advanced analysis features (redundant addresses, indirect rules, nested groups)
+- **Models Package (`models/`)**: Data structures and type definitions
+  - `models.go`: All data models, regex patterns, and result structures
+- **UI Package (`ui/`)**: User interface and terminal interaction
+  - `display.go`: Color formatting and output display functions
+  - `interactive.go`: Interactive mode implementation with guided user experience
+- **Utils Package (`utils/`)**: Utility functions and file operations
+  - `utils.go`: Formatting, parsing, and system utilities
+  - `writer.go`: Structured YAML output generation and file writing
 - **Setup Script (`setup.sh`)**: Bash script that builds the Go binary and verifies Go installation
 - **NPM Integration**: Simple package.json provides convenient npm commands that wrap the Go tooling
 
 ### Key Processing Flow
-1. **Memory-Optimized File Reading**: Loads entire configuration into memory for faster processing
-2. **Compiled Regex Patterns**: Pre-compiled regex patterns for maximum performance
-3. **Relationship Analysis**: Identifies direct and indirect relationships through address groups
-4. **Context Extraction**: Determines how addresses are used (source, destination, etc.)
-5. **Structured Output Generation**: Creates YAML-like output files with detailed analysis results
+1. **Memory-Optimized File Reading**: Loads entire configuration into memory for faster processing (processor/processor.go:63-203)
+2. **Compiled Regex Patterns**: Pre-compiled regex patterns for maximum performance (models/models.go:6-18)
+3. **Relationship Analysis**: Identifies direct and indirect relationships through address groups (processor/analysis.go)
+4. **Context Extraction**: Determines how addresses are used (source, destination, etc.) (processor/processor.go:256-309)
+5. **Structured Output Generation**: Creates YAML-like output files with detailed analysis results (utils/writer.go)
 
 ### Performance Optimizations
 - **In-Memory Processing**: Entire configuration file loaded into memory for faster analysis
-- **Pre-Compiled Regex**: All patterns compiled once at startup
-- **Efficient Data Structures**: Uses native Go maps and slices for optimal performance
-- **Progress Reporting**: Shows progress every 50K-150K lines for large files
+- **Pre-Compiled Regex**: All patterns compiled once at startup (models/models.go:23-37)
+- **Efficient Data Structures**: Uses native Go maps and slices for optimal performance (models/models.go:35-96)
+- **Progress Reporting**: Shows progress every 200K-500K lines for large files (processor/processor.go:120-137)
 - **Minimal Dependencies**: Uses only Go standard library (no external dependencies)
 
 ### Data Structure Patterns
-- Address groups processed with context information (shared vs device-group)
-- Security rules organized by device groups with relationship context
-- Results include redundant address detection based on IP netmask matching
-- Nested address group analysis for complex hierarchies
+- **Modular Design**: Clean separation of concerns across packages
+- **Structured Models**: Well-defined data structures for all components (models/models.go)
+- **Address groups processed with context information** (shared vs device-group)
+- **Security rules organized by device groups** with relationship context
+- **Results include redundant address detection** based on IP netmask matching (processor/analysis.go:12-53)
+- **Nested address group analysis** for complex hierarchies (processor/analysis.go:178-282)
 
 ### Dependencies
 - **Runtime**: Zero external dependencies - uses only Go standard library
 - **Build Tools**: Go 1.20+ required (as specified in go.mod)
 
 ### File Structure
-- **`main.go`**: Single-file Go application containing all functionality (~1575 lines)
+- **`main.go`**: CLI interface and orchestration (~202 lines)
+- **`models/models.go`**: Data structures and type definitions (~102 lines)
+- **`processor/processor.go`**: Core processing engine (~391 lines)
+- **`processor/analysis.go`**: Advanced analysis algorithms (~282 lines)
+- **`ui/display.go`**: Terminal display and formatting (~75 lines)
+- **`ui/interactive.go`**: Interactive mode implementation (~203 lines)
+- **`utils/utils.go`**: Utility functions (~88 lines)
+- **`utils/writer.go`**: Output generation and file writing (~288 lines)
 - **`setup.sh`**: Bash script for building and optionally running the parser
 - **`package.json`**: NPM wrapper scripts for convenient command execution
 - **`go.mod`**: Go module definition (minimal, no external dependencies)
