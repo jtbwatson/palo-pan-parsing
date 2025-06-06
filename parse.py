@@ -57,9 +57,26 @@ class PANLogProcessor:
         address_set = set(addresses)
         ip_to_addresses = {}  # Maps IP netmasks to addresses for redundancy detection
         
+        # Get file size for progress tracking
+        try:
+            import os
+            file_size = os.path.getsize(file_path)
+            total_lines = sum(1 for line in open(file_path, 'r'))
+        except:
+            file_size = 0
+            total_lines = 0
+            
+        print(f"{COLOR_INFO}  📄 Processing configuration file: {COLOR_HIGHLIGHT}{os.path.basename(file_path) if file_size > 0 else 'unknown'}")
+        if total_lines > 0:
+            print(f"{COLOR_INFO}  📊 File contains {COLOR_HIGHLIGHT}{total_lines:,}{COLOR_INFO} configuration lines")
+        
         try:
             with open(file_path, 'r') as file:
                 for line_num, line in enumerate(file, 1):
+                    # Show progress every 1000 lines for large files
+                    if total_lines > 5000 and line_num % 1000 == 0:
+                        print_progress_bar(line_num, total_lines, f"Scanning line {line_num:,}")
+                        
                     line = line.strip()
                     if not line:
                         continue
@@ -85,6 +102,10 @@ class PANLogProcessor:
                     for address in matching_addresses:
                         self.results[address]['matching_lines'].append(line)
                         self._extract_items_from_line(line, address)
+                
+                # Complete the progress bar if it was shown
+                if total_lines > 5000:
+                    print_progress_bar(total_lines, total_lines, "Scanning complete")
                         
         except FileNotFoundError:
             print(f"{COLOR_ERROR}Error: File '{file_path}' not found.")
@@ -93,13 +114,18 @@ class PANLogProcessor:
             print(f"{COLOR_ERROR}Error reading file: {e}")
             return False
             
+        print(f"{COLOR_SUCCESS}  ✅ Initial scan complete")
+        
         # Process redundant addresses
+        print(f"{COLOR_INFO}  🔍 Analyzing redundant address objects...")
         self._find_redundant_addresses(ip_to_addresses, address_set)
         
         # Find indirect security rules (requires second pass only for address groups)
+        print(f"{COLOR_INFO}  🔗 Discovering indirect security rule relationships...")
         self._find_indirect_rules(file_path, addresses)
         
         # Find nested address groups (requires analyzing all groups)
+        print(f"{COLOR_INFO}  📂 Mapping nested address group hierarchies...")
         self._find_nested_address_groups(file_path, addresses)
         
         return True
@@ -224,8 +250,18 @@ class PANLogProcessor:
             
         # Single pass to find rules referencing these groups
         try:
+            # Get total lines for progress tracking
+            try:
+                total_lines = sum(1 for line in open(file_path, 'r'))
+            except:
+                total_lines = 0
+                
             with open(file_path, 'r') as file:
-                for line in file:
+                for line_num, line in enumerate(file, 1):
+                    # Show progress every 2000 lines for large files
+                    if total_lines > 10000 and line_num % 2000 == 0:
+                        print_progress_bar(line_num, total_lines, f"Analyzing line {line_num:,}")
+                        
                     line = line.strip()
                     if not ("security rules" in line or "security-rule" in line):
                         continue
@@ -284,6 +320,10 @@ class PANLogProcessor:
                                 context += " (in source)"
                             
                         self.results[target_addr]['indirect_rule_contexts'][rule_name] = context
+                
+                # Complete the progress bar if it was shown
+                if total_lines > 10000:
+                    print_progress_bar(total_lines, total_lines, "Analysis complete")
                         
         except Exception as e:
             print(f"{COLOR_ERROR}Error finding indirect rules: {e}")
@@ -295,8 +335,18 @@ class PANLogProcessor:
         
         try:
             # First pass: collect ALL address groups and their members
+            # Get total lines for progress tracking
+            try:
+                total_lines = sum(1 for line in open(file_path, 'r'))
+            except:
+                total_lines = 0
+                
             with open(file_path, 'r') as file:
-                for line in file:
+                for line_num, line in enumerate(file, 1):
+                    # Show progress every 2500 lines for large files
+                    if total_lines > 12000 and line_num % 2500 == 0:
+                        print_progress_bar(line_num, total_lines, f"Mapping groups {line_num:,}")
+                        
                     line = line.strip()
                     if not line:
                         continue
@@ -349,6 +399,10 @@ class PANLogProcessor:
                     current_groups = [g['name'] for g in self.results[target_addr]['address_groups']]
                     if group_info['name'] not in current_groups:
                         self.results[target_addr]['address_groups'].append(group_info)
+            
+            # Complete the progress bar if it was shown
+            if total_lines > 12000:
+                print_progress_bar(total_lines, total_lines, "Mapping complete")
                         
         except Exception as e:
             print(f"{COLOR_ERROR}Error finding nested address groups: {e}")
@@ -1044,7 +1098,7 @@ def main():
         return
     
     if interactive_mode:
-        print(f"{COLOR_SUCCESS}  ✅ Configuration parsing complete!")
+        print(f"{COLOR_SUCCESS}  ✅ Deep relationship analysis complete!")
         print_section_footer()
     
     # Process results for each address
