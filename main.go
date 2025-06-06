@@ -1470,7 +1470,6 @@ func promptAddressGroupCopy(originalAddress string, addressGroups []AddressGroup
 		if command != "" {
 			commandCount++
 			commands = append(commands, command)
-			fmt.Printf(colorListItem("  %d. %s\n"), commandCount, command)
 		}
 	}
 
