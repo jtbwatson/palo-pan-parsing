@@ -40,11 +40,6 @@ func colorSecondary(text string) string { return colorMagenta + text + colorRese
 func colorDimText(text string) string   { return colorDim + colorWhite + text + colorReset }
 func colorListItem(text string) string  { return colorGreen + text + colorReset }
 
-// isWordChar checks if a character is a word character (letter, digit, underscore, hyphen)
-func isWordChar(c byte) bool {
-	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
-}
-
 // Pattern definitions
 type Patterns struct {
 	SecurityRuleQuoted    *regexp.Regexp
@@ -190,12 +185,8 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		colorHighlight(formatNumber(totalLines)))
 	fmt.Println("  ⚡ Processing in-memory for maximum performance...")
 
-	// Pre-compile address search patterns for performance
-	addressPatterns := make(map[string]*regexp.Regexp)
-	for addr := range addressSet {
-		// Use word boundaries to avoid partial matches
-		addressPatterns[addr] = regexp.MustCompile(`\b` + regexp.QuoteMeta(addr) + `\b`)
-	}
+	// Note: Using simple substring matching to match Python behavior
+	// This ensures addresses like "someserver-rebuild" match when searching for "someserver"
 
 	// Process all lines in memory with optimized batch processing
 	progressInterval := 250000 // Less frequent progress reporting for better performance
@@ -243,25 +234,15 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		hasAddress := false
 		var matchingAddresses []string
 		
-		// Ultra-optimized address matching - single pass through addresses
+		// Fast address matching - simple substring search (matches Python behavior)
 		for addr := range addressSet {
-			// Fast substring check first
-			if idx := strings.Index(line, addr); idx != -1 {
-				// Quick boundary check before expensive regex
-				lineLen := len(line)
-				addrLen := len(addr)
-				
-				// Check word boundaries manually for common cases
-				isWordStart := (idx == 0 || !isWordChar(line[idx-1]))
-				isWordEnd := (idx+addrLen >= lineLen || !isWordChar(line[idx+addrLen]))
-				
-				if isWordStart && isWordEnd {
-					if !hasAddress {
-						matchingAddresses = make([]string, 0, len(addressSet)) // Pre-allocate capacity
-						hasAddress = true
-					}
-					matchingAddresses = append(matchingAddresses, addr)
+			// Simple substring check - matches any occurrence like Python version
+			if strings.Contains(line, addr) {
+				if !hasAddress {
+					matchingAddresses = make([]string, 0, len(addressSet)) // Pre-allocate capacity
+					hasAddress = true
 				}
+				matchingAddresses = append(matchingAddresses, addr)
 			}
 		}
 
@@ -489,10 +470,10 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 		return
 	}
 
-	// Pre-compile all regex patterns for performance
+	// Pre-compile all regex patterns for performance (using simple matching like Python version)
 	groupPatterns := make(map[string]*GroupPattern)
 	for name, info := range allGroups {
-		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`)
+		pattern := regexp.MustCompile(regexp.QuoteMeta(name))
 		groupPatterns[name] = &GroupPattern{
 			Pattern: pattern,
 			Info:    info,
