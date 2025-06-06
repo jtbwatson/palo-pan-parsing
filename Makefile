@@ -1,9 +1,32 @@
 # PAN Log Parser Makefile
 
-.PHONY: build install uninstall clean help run tui
+.PHONY: build install uninstall clean help run verbose setup
 
 # Default target
 all: build
+
+# Check dependencies and build
+setup:
+	@echo "🔥 PAN Log Parser Setup"
+	@echo "======================"
+	@if ! command -v go >/dev/null 2>&1; then \
+		echo "❌ Go is not installed. Please install Go 1.23 or later."; \
+		echo "   Visit: https://golang.org/dl/"; \
+		exit 1; \
+	fi
+	@echo "✅ Found Go: $$(go version)"
+	@echo "📦 Installing dependencies..."
+	@go mod tidy
+	@echo "🔨 Building application..."
+	@go build -o pan-parser main.go
+	@chmod +x pan-parser
+	@echo "✅ Setup complete!"
+	@echo ""
+	@echo "Usage:"
+	@echo "  make install    # Install globally"
+	@echo "  make run        # Run locally (TUI mode)"
+	@echo "  make verbose    # Run locally (verbose mode)"
+	@echo "  ./pan-parser    # Direct execution"
 
 # Build the application
 build:
@@ -18,14 +41,17 @@ install: build
 	@if [ -w "/usr/local/bin" ]; then \
 		sudo cp pan-parser /usr/local/bin/; \
 		echo "✅ Installed to /usr/local/bin/pan-parser"; \
+		echo "   You can now use: pan-parser"; \
 	elif [ -d "$(HOME)/.local/bin" ]; then \
 		mkdir -p "$(HOME)/.local/bin"; \
 		cp pan-parser "$(HOME)/.local/bin/"; \
 		echo "✅ Installed to $(HOME)/.local/bin/pan-parser"; \
-		echo "   Make sure $(HOME)/.local/bin is in your PATH"; \
+		echo "   You can now use: pan-parser"; \
+		echo "   (Make sure $(HOME)/.local/bin is in your PATH)"; \
 	elif [ -d "$(HOME)/bin" ]; then \
 		cp pan-parser "$(HOME)/bin/"; \
 		echo "✅ Installed to $(HOME)/bin/pan-parser"; \
+		echo "   You can now use: pan-parser"; \
 	else \
 		echo "❌ No suitable installation directory found"; \
 		echo "   Manually copy 'pan-parser' to a directory in your PATH"; \
@@ -66,6 +92,7 @@ help:
 	@echo "PAN Log Parser Makefile"
 	@echo ""
 	@echo "Available targets:"
+	@echo "  setup     - Check dependencies and build"
 	@echo "  build     - Build the application"
 	@echo "  install   - Build and install globally"
 	@echo "  uninstall - Remove from system PATH"
@@ -74,8 +101,12 @@ help:
 	@echo "  verbose   - Build and run verbose interactive mode"
 	@echo "  help      - Show this help message"
 	@echo ""
-	@echo "Usage examples:"
-	@echo "  make install    # Install globally so you can use 'pan-parser' anywhere"
-	@echo "  make run        # Quick run TUI mode (default)"
-	@echo "  make verbose    # Run classic interactive mode"
-	@echo "  make clean      # Clean up"
+	@echo "Quick start:"
+	@echo "  make setup      # First time setup"
+	@echo "  make install    # Install globally (recommended)"
+	@echo "  pan-parser      # Use from anywhere"
+	@echo ""
+	@echo "Development:"
+	@echo "  make run        # Test locally in TUI mode"
+	@echo "  make verbose    # Test locally in verbose mode"
+	@echo "  make clean      # Clean build artifacts"

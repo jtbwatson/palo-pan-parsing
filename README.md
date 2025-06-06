@@ -5,34 +5,31 @@ A high-performance, modular Go-based command-line utility that analyzes Palo Alt
 ## Quick Start
 
 ```bash
-# 1. Clone and install globally
+# 1. Clone and setup
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
+make setup
+
+# 2. Install globally (recommended)
 make install
 
-# 2. Use from anywhere (runs TUI mode by default)
+# 3. Use from anywhere (runs TUI mode by default)
 pan-parser
 ```
 
 ### Alternative Installation Methods
 
-**Using setup script (interactive):**
-```bash
-npm run setup  # Follow prompts for global installation
-```
-
-**Using Makefile (advanced):**
+**Global installation:**
 ```bash
 make install   # Install globally
-make run       # Quick run default mode (TUI)
-make verbose   # Quick run verbose mode  
 make uninstall # Remove from system
 ```
 
-**Local installation only:**
+**Local development:**
 ```bash
-npm run setup  # Choose 'N' for local only
-./pan-parser
+make setup     # Initial setup and build
+make run       # Run locally (TUI mode)
+make verbose   # Run locally (verbose mode)
 ```
 
 ## What It Does
@@ -66,19 +63,20 @@ This tool parses PAN configuration exports/logs to help network administrators u
 ### Prerequisites
 - Go 1.23 or later (as specified in go.mod)
 
-### Quick Setup
+### Setup
 ```bash
 # Clone the repository
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
 
-# Build the application
-npm run setup
-# Alternative: go build -o pan-parser main.go
+# Setup and build
+make setup
 
-# Verify installation and show help
-npm run help
-# Alternative: ./pan-parser -h
+# Install globally (recommended)
+make install
+
+# Verify installation
+pan-parser -h
 ```
 
 ## Usage
@@ -90,7 +88,7 @@ pan-parser
 
 # If local installation:
 ./pan-parser
-# or: npm run start
+# or: make run
 ```
 By default, the tool runs in **Terminal User Interface (TUI)** mode, providing a modern, intuitive experience with:
 - **Clean visual interface** with professional blue/purple color scheme
@@ -106,7 +104,7 @@ pan-parser --verbose
 
 # If local installation:
 ./pan-parser --verbose
-# or: npm run verbose
+# or: make verbose
 ```
 The classic interactive mode provides a guided command-line experience with colored terminal output, progress reporting, and prompts for all required inputs.
 
@@ -127,20 +125,21 @@ pan-parser -h
 
 ### Quick Reference
 
-**Recommended npm commands:**
+**Makefile commands:**
 ```bash
-npm run setup    # Build the application
-npm run start    # Launch default TUI interface
-npm run verbose  # Launch classic verbose mode
-npm run help     # Show help and command options
+make setup       # Initial setup and build
+make install     # Install globally
+make run         # Run locally (TUI mode)
+make verbose     # Run locally (verbose mode)
+make help        # Show available targets
 ```
 
-**Direct command line usage:**
+**Command line usage:**
 ```bash
-./pan-parser                          # Default TUI interface
-./pan-parser --verbose                # Classic verbose mode
-./pan-parser -a <address> -l <file>   # Direct analysis
-./pan-parser -h                       # Show help
+pan-parser                            # Default TUI interface (if installed)
+pan-parser --verbose                  # Classic verbose mode
+pan-parser -a <address> -l <file>     # Direct analysis
+pan-parser -h                         # Show help
 ```
 
 ### Command Line Options
