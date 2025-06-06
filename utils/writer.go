@@ -42,24 +42,24 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 
 	// Matching configuration lines section
 	fmt.Fprintf(file, "# MATCHING CONFIGURATION LINES\n")
-	fmt.Fprintf(file, "# Found %d lines containing '%s'\n", len(matchingLines), addressName)
-	fmt.Fprintf(file, "---\n\n")
-
+	fmt.Fprintf(file, "Found [%d] lines containing '%s':\n", len(matchingLines), addressName)
+	fmt.Fprintf(file, "---\n")
 	if len(matchingLines) > 0 {
 		for i, line := range matchingLines {
-			fmt.Fprintf(file, "  %2d. %s\n", i+1, line)
+			fmt.Fprintf(file, "%2d. %s\n", i+1, line)
 		}
 	} else {
-		fmt.Fprintf(file, "  # No matching lines found\n")
+		fmt.Fprintf(file, "No matching lines found\n")
 	}
+	fmt.Fprintf(file, "---\n")
 
 	// Category sections
 
 	// Write each category
 	writeCategory(file, "Device Groups", itemsDict.DeviceGroups)
-	writeSecurityRulesCategory(file, "Direct Security Rules", itemsDict.DirectSecurityRules)
-	writeSecurityRulesCategory(file, "Indirect Security Rules (via Address Groups)", itemsDict.IndirectSecurityRules)
-	writeAddressGroupsCategory(file, itemsDict.AddressGroups)
+	writeSecurityRulesCategory(file, "Direct Security Rules", itemsDict.DirectSecurityRules, matchingLines)
+	writeSecurityRulesCategory(file, "Indirect Security Rules (via Address Groups)", itemsDict.IndirectSecurityRules, matchingLines)
+	writeAddressGroupsCategory(file, addressName, itemsDict.AddressGroups)
 	writeCategory(file, "NAT Rules", itemsDict.NATRules)
 	writeCategory(file, "Service Groups", itemsDict.ServiceGroups)
 	writeRedundantAddressesCategory(file, itemsDict.RedundantAddresses)
@@ -76,31 +76,32 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 
 func writeCategory(file *os.File, category string, items []string) {
 	count := len(items)
-	fmt.Fprintf(file, "\n# %s\n", strings.ToUpper(category))
-	fmt.Fprintf(file, "# Found: %d item", count)
+	fmt.Fprintf(file, "# %s\n", strings.ToUpper(category))
+	fmt.Fprintf(file, "Found [%d] item", count)
 	if count != 1 {
 		fmt.Fprintf(file, "s")
 	}
-	fmt.Fprintf(file, "\n---\n")
-
+	fmt.Fprintf(file, ":\n")
+	fmt.Fprintf(file, "---\n")
 	if count > 0 {
 		for i, item := range items {
-			fmt.Fprintf(file, "  %d. %s\n", i+1, item)
+			fmt.Fprintf(file, "%d. %s\n", i+1, item)
 		}
 	} else {
-		fmt.Fprintf(file, "  None discovered\n")
+		fmt.Fprintf(file, "None discovered\n")
 	}
-	fmt.Fprintf(file, "\n")
+	fmt.Fprintf(file, "---\n")
 }
 
-func writeSecurityRulesCategory(file *os.File, category string, items []string) {
+func writeSecurityRulesCategory(file *os.File, category string, items []string, matchingLines []string) {
 	count := len(items)
-	fmt.Fprintf(file, "\n# %s\n", strings.ToUpper(category))
-	fmt.Fprintf(file, "# Found: %d item", count)
+	fmt.Fprintf(file, "# %s\n", strings.ToUpper(category))
+	fmt.Fprintf(file, "Found [%d] item", count)
 	if count != 1 {
 		fmt.Fprintf(file, "s")
 	}
-	fmt.Fprintf(file, "\n---\n")
+	fmt.Fprintf(file, ":\n")
+	fmt.Fprintf(file, "---\n")
 
 	if count > 0 {
 		// Group rules by device group
@@ -137,72 +138,81 @@ func writeSecurityRulesCategory(file *os.File, category string, items []string) 
 		}
 		sort.Strings(deviceGroups)
 
+		// Create numbered list similar to address groups format
+		itemCount := 1
 		for _, dg := range deviceGroups {
 			rules := rulesByDG[dg]
-			fmt.Fprintf(file, "  %s:\n", dg)
 			for _, rule := range rules {
-				if rule.Context != "" {
-					fmt.Fprintf(file, "    - %s  # %s\n", rule.Name, rule.Context)
-				} else {
-					fmt.Fprintf(file, "    - %s\n", rule.Name)
+				fmt.Fprintf(file, "%d. %s (device-group - %s):\n", itemCount, rule.Name, dg)
+				
+				// Find the original command line for this rule
+				var commandLine string
+				for _, line := range matchingLines {
+					if strings.Contains(line, "security") && strings.Contains(line, "rules") && 
+					   strings.Contains(line, rule.Name) && strings.Contains(line, dg) {
+						commandLine = line
+						break
+					}
 				}
+				
+				if commandLine != "" {
+					fmt.Fprintf(file, "   └─ Command: %s\n", commandLine)
+				}
+				
+				if rule.Context != "" {
+					fmt.Fprintf(file, "   └─ Context: %s\n", rule.Context)
+				} else {
+					fmt.Fprintf(file, "   └─ Context: direct reference\n")
+				}
+				fmt.Fprintf(file, "   └─ Device Group: %s\n", dg)
+				itemCount++
 			}
-			fmt.Fprintf(file, "\n")
 		}
 	} else {
-		fmt.Fprintf(file, "  None discovered\n")
+		fmt.Fprintf(file, "None discovered\n")
 	}
-	fmt.Fprintf(file, "\n")
+	fmt.Fprintf(file, "---\n")
 }
 
-func writeAddressGroupsCategory(file *os.File, groups []models.AddressGroup) {
+func writeAddressGroupsCategory(file *os.File, addressName string, groups []models.AddressGroup) {
 	count := len(groups)
-	fmt.Fprintf(file, "\n# ADDRESS GROUPS\n")
-	fmt.Fprintf(file, "# Found: %d item", count)
-	if count != 1 {
-		fmt.Fprintf(file, "s")
-	}
-	fmt.Fprintf(file, "\n---\n")
-
+	fmt.Fprintf(file, "# ADDRESS GROUPS\n")
+	fmt.Fprintf(file, "Found [%d] items containing '%s':\n", count, addressName)
+	fmt.Fprintf(file, "---\n")
 	if count > 0 {
 		for i, group := range groups {
 			if group.Context == "shared" {
-				fmt.Fprintf(file, "  %d. %s (shared scope):\n", i+1, group.Name)
-				fmt.Fprintf(file, "     └─ Command: set shared address-group %s static %s\n", group.Name, group.Definition)
-				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
+				fmt.Fprintf(file, "%d. %s (shared scope):\n", i+1, group.Name)
+				fmt.Fprintf(file, "   └─ Command: set shared address-group %s static %s\n", group.Name, group.Definition)
+				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
 			} else {
-				fmt.Fprintf(file, "  %d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
-				fmt.Fprintf(file, "     └─ Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
-				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
+				fmt.Fprintf(file, "%d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
+				fmt.Fprintf(file, "   └─ Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
+				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
 			}
 		}
 	} else {
-		fmt.Fprintf(file, "  None discovered\n")
+		fmt.Fprintf(file, "None discovered\n")
 	}
-	fmt.Fprintf(file, "\n")
+	fmt.Fprintf(file, "---\n")
 }
 
 func writeRedundantAddressesCategory(file *os.File, addresses []models.RedundantAddress) {
 	count := len(addresses)
-	fmt.Fprintf(file, "\n# REDUNDANT ADDRESSES\n")
-	fmt.Fprintf(file, "# Found: %d item", count)
-	if count != 1 {
-		fmt.Fprintf(file, "s")
-	}
-	fmt.Fprintf(file, "\n---\n")
-
+	fmt.Fprintf(file, "# REDUNDANT ADDRESSES\n")
+	fmt.Fprintf(file, "Found [%d] items with identical ip/netmask:\n", count)
+	fmt.Fprintf(file, "---\n")
 	if count > 0 {
-		fmt.Fprintf(file, "  Address objects with identical IP configurations:\n\n")
 		for i, addr := range addresses {
-			fmt.Fprintf(file, "  %d. %s:\n", i+1, addr.Name)
-			fmt.Fprintf(file, "     └─ IP/Netmask: %s\n", addr.IPNetmask)
-			fmt.Fprintf(file, "     └─ Scope: %s\n", addr.DeviceGroup)
-			fmt.Fprintf(file, "     └─ Note: Same IP as target address - potential duplicate\n\n")
+			fmt.Fprintf(file, "%d. %s:\n", i+1, addr.Name)
+			fmt.Fprintf(file, "   └─ IP/Netmask: %s\n", addr.IPNetmask)
+			fmt.Fprintf(file, "   └─ Scope: %s\n", addr.DeviceGroup)
+			fmt.Fprintf(file, "   └─ Note: Same IP as target address - potential duplicate\n")
 		}
 	} else {
-		fmt.Fprintf(file, "  None discovered\n")
+		fmt.Fprintf(file, "None discovered\n")
 	}
-	fmt.Fprintf(file, "\n")
+	fmt.Fprintf(file, "---\n")
 }
 
 // WriteAddressGroupCommands writes generated commands to a YAML file
@@ -236,7 +246,7 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 	// Commands section
 	fmt.Fprintf(file, "# GENERATED CONFIGURATION COMMANDS\n")
 	fmt.Fprintf(file, "# Copy and paste these commands to add '%s' to the same address groups as '%s'\n", newAddressName, originalAddress)
-	fmt.Fprintf(file, "---\n\n")
+	fmt.Fprintf(file, "---\n")
 
 	if len(commands) > 0 {
 		for _, command := range commands {
@@ -249,24 +259,24 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 	// Address groups details section
 	fmt.Fprintf(file, "\n# SOURCE ADDRESS GROUPS\n")
 	fmt.Fprintf(file, "# These are the address groups that contained '%s'\n", originalAddress)
-	fmt.Fprintf(file, "---\n\n")
+	fmt.Fprintf(file, "---\n")
 
 	if len(addressGroups) > 0 {
 		for i, group := range addressGroups {
 			if group.Context == "shared" {
-				fmt.Fprintf(file, "  %d. %s (shared scope):\n", i+1, group.Name)
-				fmt.Fprintf(file, "     └─ Original Command: set shared address-group %s static %s\n", group.Name, group.Definition)
-				fmt.Fprintf(file, "     └─ New Command: set shared address-group %s static %s\n", group.Name, newAddressName)
-				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
+				fmt.Fprintf(file, "%d. %s (shared scope):\n", i+1, group.Name)
+				fmt.Fprintf(file, "   └─ Original Command: set shared address-group %s static %s\n", group.Name, group.Definition)
+				fmt.Fprintf(file, "   └─ New Command: set shared address-group %s static %s\n", group.Name, newAddressName)
+				fmt.Fprintf(file, "   └─ Members: %s\n\n", group.Definition)
 			} else {
-				fmt.Fprintf(file, "  %d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
-				fmt.Fprintf(file, "     └─ Original Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
-				fmt.Fprintf(file, "     └─ New Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, newAddressName)
-				fmt.Fprintf(file, "     └─ Members: %s\n\n", group.Definition)
+				fmt.Fprintf(file, "%d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
+				fmt.Fprintf(file, "   └─ Original Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
+				fmt.Fprintf(file, "   └─ New Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, newAddressName)
+				fmt.Fprintf(file, "   └─ Members: %s\n\n", group.Definition)
 			}
 		}
 	} else {
-		fmt.Fprintf(file, "  None discovered\n")
+		fmt.Fprintf(file, "None discovered\n")
 	}
 
 	// Instructions section
@@ -324,7 +334,7 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 	// Define section order
 	sectionOrder := []string{"target_creation", "address_groups", "security_rules", "nat_rules", "definitions"}
 
-	// Write commands in results.yml style - easy to copy/paste
+	// Write step descriptions at the top
 	stepNum := 1
 	for _, section := range sectionOrder {
 		sectionCommands, exists := commandsBySection[section]
@@ -332,7 +342,7 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 			continue
 		}
 
-		// Get section title in results.yml style with dynamic numbering
+		// Get section title for steps
 		var sectionTitle string
 		switch section {
 		case "target_creation":
@@ -354,40 +364,61 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 		if len(sectionCommands) != 1 {
 			fmt.Fprintf(file, "s")
 		}
-		fmt.Fprintf(file, "\n---\n\n")
+		fmt.Fprintf(file, "\n---\n")
 
-		// Write descriptions first
 		for i, command := range sectionCommands {
-			fmt.Fprintf(file, "  %d. %s\n", i+1, command.Description)
-		}
-		
-		// Then write all commands together for easy copy/paste
-		fmt.Fprintf(file, "      ")
-		for i, command := range sectionCommands {
-			if i > 0 {
-				fmt.Fprintf(file, "      ")
-			}
-			fmt.Fprintf(file, "%s\n", command.Command)
+			fmt.Fprintf(file, "%d. %s\n", i+1, command.Description)
 		}
 		fmt.Fprintf(file, "\n")
-
 		stepNum++
 	}
 
-	// Add footer in results.yml style
 	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
 	fmt.Fprintf(file, "---\n")
 	if commands.TotalCommands == 0 {
-		fmt.Fprintf(file, "  No cleanup commands generated - redundant address may not be in use\n\n")
+		fmt.Fprintf(file, "No cleanup commands generated - redundant address may not be in use\n")
 	} else {
-		fmt.Fprintf(file, "  1. Execute cleanup steps in the numbered order shown above\n")
-		fmt.Fprintf(file, "  2. Remove definitions (delete commands) LAST to avoid breaking references\n")
-		fmt.Fprintf(file, "  3. Test all commands in non-production environment first\n")
-		fmt.Fprintf(file, "  4. Backup configuration before making changes\n\n")
+		fmt.Fprintf(file, "1. Execute cleanup steps in the numbered order shown above\n")
+		fmt.Fprintf(file, "2. Remove definitions (delete commands) LAST to avoid breaking references\n")
+		fmt.Fprintf(file, "3. Test all commands in non-production environment first\n")
+		fmt.Fprintf(file, "4. Backup configuration before making changes\n")
+	}
+
+	// Write actual commands at the bottom
+	stepNum = 1
+	for _, section := range sectionOrder {
+		sectionCommands, exists := commandsBySection[section]
+		if !exists || len(sectionCommands) == 0 {
+			continue
+		}
+
+		// Get section title for commands
+		var sectionTitle string
+		switch section {
+		case "target_creation":
+			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
+		case "address_groups":
+			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
+		case "security_rules":
+			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
+		case "nat_rules":
+			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
+		case "definitions":
+			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
+		default:
+			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
+		}
+
+		fmt.Fprintf(file, "\n# %s\n", sectionTitle)
+		fmt.Fprintf(file, "---\n")
+		for _, command := range sectionCommands {
+			fmt.Fprintf(file, "%s\n", command.Command)
+		}
+		stepNum++
 	}
 
 	// Add footer like results.yml
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
+	fmt.Fprintf(file, "\n# ═══════════════════════════════════════════════════════════════\n")
 	fmt.Fprintf(file, "# Cleanup Commands Generation Complete\n")
 	fmt.Fprintf(file, "# Generated by: PAN Log Parser Tool v2.0 (Go Edition)\n")
 	fmt.Fprintf(file, "# Advanced Redundant Address Cleanup & Optimization\n")
