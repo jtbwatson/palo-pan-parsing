@@ -460,11 +460,11 @@ def write_results(output_file, address_name, matching_lines, items_dict):
                     for i, group in enumerate(items, 1):
                         if isinstance(group, dict):
                             if group["context"] == "shared":
-                                file.write(f"  📂 {i}. {group['name']} (shared scope)\n")
+                                file.write(f"  📂 {i}. {group['name']} (shared scope):\n")
                                 file.write(f"     └─ Command: set shared address-group {group['name']} static {group['definition']}\n")
                                 file.write(f"     └─ Members: {group['definition']}\n\n")
                             else:
-                                file.write(f"  📂 {i}. {group['name']} (device-group: {group['device_group']})\n")
+                                file.write(f"  📂 {i}. {group['name']} (device-group - {group['device_group']}):\n")
                                 file.write(f"     └─ Command: set device-group {group['device_group']} address-group {group['name']} static {group['definition']}\n")
                                 file.write(f"     └─ Members: {group['definition']}\n\n")
                         else:
@@ -473,7 +473,7 @@ def write_results(output_file, address_name, matching_lines, items_dict):
                 elif category == "Redundant Addresses" and items:
                     file.write("  ⚠️  Address objects with identical IP configurations:\n\n")
                     for i, addr in enumerate(items, 1):
-                        file.write(f"  🔄 {i}. {addr['name']}\n")
+                        file.write(f"  🔄 {i}. {addr['name']}:\n")
                         file.write(f"     └─ IP/Netmask: {addr['ip-netmask']}\n")
                         file.write(f"     └─ Scope: {addr['device_group']}\n")
                         file.write(f"     └─ Note: Same IP as target address - potential duplicate\n\n")
@@ -686,13 +686,18 @@ def print_section_header(title, icon="🔍"):
     """Print a nicely formatted section header"""
     # Fixed total width of 60 characters inside the box
     header_content = f"─{icon} {title}"
-    remaining_width = 60 - len(header_content)
+    # Account for wide emojis that may take up 2 visual spaces but count as 1 character
+    visual_width = len(header_content)
+    # Some emojis like ⚙️ render wider - adjust if needed
+    if icon in ["⚙️", "🖥️"]:
+        visual_width += 1
+    remaining_width = 60 - visual_width
     dash_line = "─" * max(0, remaining_width)
     print(f"\n{COLOR_SECTION}┌{header_content}{dash_line}┐")
 
 def print_section_footer():
     """Print a section footer"""
-    dash_line = "─" * 61
+    dash_line = "─" * 59  # 59 dashes to match header width
     print(f"{COLOR_SECTION}└{dash_line}┘{COLOR_RESET}")
 
 def print_progress_bar(current, total, description="Processing"):
@@ -753,7 +758,7 @@ def main():
     if interactive_mode:
         clear_screen()
         print_banner()
-        print_section_header("Configuration Analysis Setup", "⚙️")
+        print_section_header("Configuration Analysis Setup", "⚙️ ")
         print(f"{COLOR_INFO}  Welcome to the advanced PAN configuration analyzer!")
         print(f"{COLOR_INFO}  This tool will help you discover complex relationships")
         print(f"{COLOR_INFO}  in your Palo Alto Networks configuration logs.")
