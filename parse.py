@@ -535,7 +535,156 @@ def generate_add_commands(results_file, new_address):
     
     return commands
 
-def handle_command_generation(output_file, interactive_mode):
+def generate_add_commands_for_address(results_file, target_address, new_address):
+    """Generate commands to add a new address to address groups that contain a specific target address"""
+    commands = []
+    try:
+        with open(results_file, 'r') as f:
+            content = f.read()
+        
+        if "# 📂 ADDRESS GROUPS" in content:
+            # Extract just the address groups section
+            after_address_groups = content.split("# 📂 ADDRESS GROUPS")[1]
+            import re
+            next_section_match = re.search(r'\n# [🌐⚙️⚠️🏢🛡️🔗📂📋]', after_address_groups)
+            if next_section_match:
+                address_groups_section = after_address_groups[:next_section_match.start()]
+            else:
+                address_groups_section = after_address_groups
+            
+            # Parse each address group and check if it contains the target address
+            lines = address_groups_section.strip().split('\n')
+            current_group_contains_target = False
+            
+            for line in lines:
+                if '└─ Command:' in line:
+                    # Extract the actual command after "└─ Command: "
+                    command_part = line.split('└─ Command: ')[1].strip()
+                    
+                    # Check if this group contains our target address by looking at the next Members line
+                    line_index = lines.index(line)
+                    if line_index + 1 < len(lines):
+                        members_line = lines[line_index + 1]
+                        if '└─ Members:' in members_line:
+                            members_content = members_line.split('└─ Members: ')[1].strip()
+                            # Check if target address is in the members
+                            if target_address in members_content:
+                                current_group_contains_target = True
+                            else:
+                                current_group_contains_target = False
+                    
+                    # Only generate command if this group contains the target address
+                    if current_group_contains_target:
+                        if 'set device-group' in command_part:
+                            parts = command_part.split('address-group')
+                            prefix = parts[0] + 'address-group'
+                            remaining = parts[1].strip()
+                            group_name = remaining.split('static', 1)[0].strip()
+                            commands.append(f"{prefix} {group_name} member {new_address}")
+                        elif 'set shared' in command_part:
+                            parts = command_part.split('address-group')
+                            prefix = parts[0] + 'address-group'
+                            remaining = parts[1].strip()
+                            group_name = remaining.split('static', 1)[0].strip()
+                            commands.append(f"{prefix} {group_name} member {new_address}")
+                        
+                        current_group_contains_target = False  # Reset for next group
+                        
+    except Exception as e:
+        print(f"{COLOR_ERROR}Error generating commands for {target_address}: {e}")
+    
+    return commands
+
+def handle_command_generation_multiple_files(result_files, searched_addresses, interactive_mode):
+    """Handle command generation for multiple result files with address mapping"""
+    if not interactive_mode:
+        return
+    
+    print_section_header("Command Generation", "⚡")
+    print(f"{COLOR_INFO}  🛠️  Generate PAN CLI commands to add new addresses to discovered groups")
+    print(f"{COLOR_INFO}  🎯 This feature creates ready-to-execute configuration commands")
+    print(f"{COLOR_INFO}  📋 Processing {COLOR_HIGHLIGHT}{len(result_files)}{COLOR_INFO} result files for comprehensive mapping")
+    print()
+    
+    generate_commands = interactive_input("⚡ Generate PAN CLI commands for new addresses? (y/n)", "n").lower() == "y"
+    if generate_commands:
+        print(f"{COLOR_INFO}  📋 Creating address mapping for {COLOR_HIGHLIGHT}{len(searched_addresses)}{COLOR_INFO} searched addresses")
+        print(f"{COLOR_INFO}  🔗 Map each searched address to its corresponding new address:")
+        print()
+        
+        address_mapping = {}
+        for addr in searched_addresses:
+            new_addr = interactive_input(f"🏷️  Map '{COLOR_HIGHLIGHT}{addr}{COLOR_RESET}' to new address name")
+            if new_addr:
+                address_mapping[addr] = new_addr
+            else:
+                print(f"{COLOR_WARNING}  ⚠️  Skipping mapping for '{addr}' - no new address provided")
+        
+        if address_mapping:
+            print(f"\n{COLOR_INFO}  🔧 Generating commands for address mapping:")
+            for old_addr, new_addr in address_mapping.items():
+                print(f"{COLOR_LIST_ITEM}     • {old_addr} → {new_addr}")
+            
+            all_commands = []
+            commands_files = []
+            
+            for old_addr, new_addr in address_mapping.items():
+                # Find the result file for this address
+                result_file = f"{old_addr}_results.yml"
+                if result_file in result_files:
+                    # Generate commands for this specific address mapping
+                    commands = generate_add_commands_for_address(result_file, old_addr, new_addr)
+                    if commands:
+                        all_commands.extend(commands)
+                        commands_file = f"add_{new_addr}_commands.txt"
+                        commands_files.append(commands_file)
+                        
+                        with open(commands_file, "w") as f:
+                            f.write(f"# PAN CLI Commands to add '{new_addr}' to address groups containing '{old_addr}'\n")
+                            f.write(f"# Generated by PAN Log Parser Tool v2.0\n")
+                            f.write(f"# Source: {result_file}\n")
+                            f.write(f"# Total commands: {len(commands)}\n\n")
+                            for cmd in commands:
+                                f.write(cmd + "\n")
+                else:
+                    print(f"{COLOR_WARNING}  ⚠️  Result file for '{old_addr}' not found, skipping")
+            
+            if all_commands:
+                print(f"\n{COLOR_SUCCESS}  ✅ Generated {COLOR_HIGHLIGHT}{len(all_commands)}{COLOR_SUCCESS} PAN CLI commands!")
+                print(f"{COLOR_SUCCESS}  📄 Commands saved to individual files:")
+                for file in commands_files:
+                    print(f"{COLOR_LIST_ITEM}     • {COLOR_HIGHLIGHT}{file}")
+                
+                # Also create a combined file
+                combined_file = "add_multiple_addresses_commands.txt"
+                with open(combined_file, "w") as f:
+                    f.write(f"# PAN CLI Commands for multiple address mappings\n")
+                    f.write(f"# Generated by PAN Log Parser Tool v2.0\n")
+                    f.write(f"# Address mappings:\n")
+                    for old_addr, new_addr in address_mapping.items():
+                        f.write(f"#   {old_addr} → {new_addr}\n")
+                    f.write(f"# Total commands: {len(all_commands)}\n\n")
+                    for cmd in all_commands:
+                        f.write(cmd + "\n")
+                
+                print(f"{COLOR_SUCCESS}  📄 Combined file: {COLOR_HIGHLIGHT}{combined_file}")
+                
+                if len(all_commands) > 0:
+                    print(f"\n{COLOR_SECTION}  📋 Preview of generated commands:")
+                    for i, cmd in enumerate(all_commands[:3], 1):
+                        print(f"{COLOR_LIST_ITEM}     {i}. {cmd}")
+                    if len(all_commands) > 3:
+                        print(f"{COLOR_DIM}     ... {len(all_commands)-3} additional commands in files")
+            else:
+                print(f"{COLOR_WARNING}  ⚠️  No address groups found for command generation")
+        else:
+            print(f"{COLOR_WARNING}  ⚠️  No address mappings provided")
+    else:
+        print(f"{COLOR_DIM}  📝 Skipping command generation")
+    
+    print_section_footer()
+
+def handle_command_generation(output_file, interactive_mode, searched_addresses=None):
     """Handle command generation flow for any scenario where address groups exist"""
     if not interactive_mode:
         return
@@ -571,33 +720,103 @@ def handle_command_generation(output_file, interactive_mode):
     print(f"{COLOR_INFO}  🎯 This feature creates ready-to-execute configuration commands")
     print()
     
-    generate_commands = interactive_input("⚡ Generate PAN CLI commands for a new address? (y/n)", "n").lower() == "y"
+    generate_commands = interactive_input("⚡ Generate PAN CLI commands for new addresses? (y/n)", "n").lower() == "y"
     if generate_commands:
-        new_address = interactive_input("🏷️  Enter the new address object name")
-        if new_address:
-            print(f"{COLOR_INFO}  🔧 Generating commands for: {COLOR_HIGHLIGHT}{new_address}")
-            commands = generate_add_commands(output_file, new_address)
-            if commands:
-                commands_file = f"add_{new_address}_commands.txt"
-                with open(commands_file, "w") as f:
-                    # Add header to command file
-                    f.write(f"# PAN CLI Commands to add '{new_address}' to address groups\n")
-                    f.write(f"# Generated by PAN Log Parser Tool v2.0\n")
-                    f.write(f"# Total commands: {len(commands)}\n\n")
-                    for cmd in commands:
-                        f.write(cmd + "\n")
+        # Check if we have multiple addresses to map
+        if searched_addresses and len(searched_addresses) > 1:
+            print(f"{COLOR_INFO}  📋 Creating address mapping for {COLOR_HIGHLIGHT}{len(searched_addresses)}{COLOR_INFO} searched addresses")
+            print(f"{COLOR_INFO}  🔗 Map each searched address to its corresponding new address:")
+            print()
+            
+            address_mapping = {}
+            for addr in searched_addresses:
+                new_addr = interactive_input(f"🏷️  Map '{COLOR_HIGHLIGHT}{addr}{COLOR_RESET}' to new address name")
+                if new_addr:
+                    address_mapping[addr] = new_addr
+                else:
+                    print(f"{COLOR_WARNING}  ⚠️  Skipping mapping for '{addr}' - no new address provided")
+            
+            if address_mapping:
+                print(f"\n{COLOR_INFO}  🔧 Generating commands for address mapping:")
+                for old_addr, new_addr in address_mapping.items():
+                    print(f"{COLOR_LIST_ITEM}     • {old_addr} → {new_addr}")
                 
-                print(f"\n{COLOR_SUCCESS}  ✅ Generated {COLOR_HIGHLIGHT}{len(commands)}{COLOR_SUCCESS} PAN CLI commands!")
-                print(f"{COLOR_SUCCESS}  📄 Commands saved to: {COLOR_HIGHLIGHT}{commands_file}")
+                all_commands = []
+                commands_files = []
                 
-                if len(commands) > 0:
-                    print(f"\n{COLOR_SECTION}  📋 Preview of generated commands:")
-                    for i, cmd in enumerate(commands[:3], 1):
-                        print(f"{COLOR_LIST_ITEM}     {i}. {cmd}")
-                    if len(commands) > 3:
-                        print(f"{COLOR_DIM}     ... {len(commands)-3} additional commands in file")
+                for old_addr, new_addr in address_mapping.items():
+                    # Generate commands for this specific address mapping
+                    commands = generate_add_commands_for_address(output_file, old_addr, new_addr)
+                    if commands:
+                        all_commands.extend(commands)
+                        commands_file = f"add_{new_addr}_commands.txt"
+                        commands_files.append(commands_file)
+                        
+                        with open(commands_file, "w") as f:
+                            f.write(f"# PAN CLI Commands to add '{new_addr}' to address groups containing '{old_addr}'\n")
+                            f.write(f"# Generated by PAN Log Parser Tool v2.0\n")
+                            f.write(f"# Total commands: {len(commands)}\n\n")
+                            for cmd in commands:
+                                f.write(cmd + "\n")
+                
+                if all_commands:
+                    print(f"\n{COLOR_SUCCESS}  ✅ Generated {COLOR_HIGHLIGHT}{len(all_commands)}{COLOR_SUCCESS} PAN CLI commands!")
+                    print(f"{COLOR_SUCCESS}  📄 Commands saved to individual files:")
+                    for file in commands_files:
+                        print(f"{COLOR_LIST_ITEM}     • {COLOR_HIGHLIGHT}{file}")
+                    
+                    # Also create a combined file
+                    combined_file = "add_multiple_addresses_commands.txt"
+                    with open(combined_file, "w") as f:
+                        f.write(f"# PAN CLI Commands for multiple address mappings\n")
+                        f.write(f"# Generated by PAN Log Parser Tool v2.0\n")
+                        f.write(f"# Address mappings:\n")
+                        for old_addr, new_addr in address_mapping.items():
+                            f.write(f"#   {old_addr} → {new_addr}\n")
+                        f.write(f"# Total commands: {len(all_commands)}\n\n")
+                        for cmd in all_commands:
+                            f.write(cmd + "\n")
+                    
+                    print(f"{COLOR_SUCCESS}  📄 Combined file: {COLOR_HIGHLIGHT}{combined_file}")
+                    
+                    if len(all_commands) > 0:
+                        print(f"\n{COLOR_SECTION}  📋 Preview of generated commands:")
+                        for i, cmd in enumerate(all_commands[:3], 1):
+                            print(f"{COLOR_LIST_ITEM}     {i}. {cmd}")
+                        if len(all_commands) > 3:
+                            print(f"{COLOR_DIM}     ... {len(all_commands)-3} additional commands in files")
+                else:
+                    print(f"{COLOR_WARNING}  ⚠️  No address groups found for command generation")
             else:
-                print(f"{COLOR_WARNING}  ⚠️  No address groups found for command generation")
+                print(f"{COLOR_WARNING}  ⚠️  No address mappings provided")
+        else:
+            # Single address - use original logic
+            searched_addr = searched_addresses[0] if searched_addresses else "the searched address"
+            new_address = interactive_input(f"🏷️  Enter new address name to add to groups containing '{searched_addr}'")
+            if new_address:
+                print(f"{COLOR_INFO}  🔧 Generating commands for: {COLOR_HIGHLIGHT}{new_address}")
+                commands = generate_add_commands(output_file, new_address)
+                if commands:
+                    commands_file = f"add_{new_address}_commands.txt"
+                    with open(commands_file, "w") as f:
+                        # Add header to command file
+                        f.write(f"# PAN CLI Commands to add '{new_address}' to address groups\n")
+                        f.write(f"# Generated by PAN Log Parser Tool v2.0\n")
+                        f.write(f"# Total commands: {len(commands)}\n\n")
+                        for cmd in commands:
+                            f.write(cmd + "\n")
+                    
+                    print(f"\n{COLOR_SUCCESS}  ✅ Generated {COLOR_HIGHLIGHT}{len(commands)}{COLOR_SUCCESS} PAN CLI commands!")
+                    print(f"{COLOR_SUCCESS}  📄 Commands saved to: {COLOR_HIGHLIGHT}{commands_file}")
+                    
+                    if len(commands) > 0:
+                        print(f"\n{COLOR_SECTION}  📋 Preview of generated commands:")
+                        for i, cmd in enumerate(commands[:3], 1):
+                            print(f"{COLOR_LIST_ITEM}     {i}. {cmd}")
+                        if len(commands) > 3:
+                            print(f"{COLOR_DIM}     ... {len(commands)-3} additional commands in file")
+                else:
+                    print(f"{COLOR_WARNING}  ⚠️  No address groups found for command generation")
     else:
         print(f"{COLOR_DIM}  📝 Skipping command generation")
     
@@ -844,7 +1063,7 @@ def main():
                 print(f"{COLOR_SUCCESS}All results written to: {COLOR_HIGHLIGHT}{output_file}")
                 
                 # Offer command generation for multiple addresses in single file
-                handle_command_generation(output_file, interactive_mode)
+                handle_command_generation(output_file, interactive_mode, addresses)
         else:
             results_count = 0
             output_files = []
@@ -884,24 +1103,15 @@ def main():
                     
                     if files_with_groups:
                         print(f"\n{COLOR_INFO}Found address groups in {COLOR_HIGHLIGHT}{len(files_with_groups)}{COLOR_INFO} result file(s).")
-                        if len(files_with_groups) == 1:
-                            handle_command_generation(files_with_groups[0], interactive_mode)
-                        else:
-                            print(f"{COLOR_INFO}Multiple files contain address groups:")
-                            for i, file in enumerate(files_with_groups, 1):
-                                print(f"  {COLOR_LIST_ITEM}{i}. {COLOR_HIGHLIGHT}{file}")
-                            
-                            choice = interactive_input(f"Select a file for command generation (1-{len(files_with_groups)}) or press Enter to skip", "")
-                            if choice.isdigit() and 1 <= int(choice) <= len(files_with_groups):
-                                selected_file = files_with_groups[int(choice) - 1]
-                                handle_command_generation(selected_file, interactive_mode)
+                        # Handle command generation for multiple files automatically
+                        handle_command_generation_multiple_files(files_with_groups, addresses, interactive_mode)
     else:
         # Single address
         result = process_address(addresses[0], processor, interactive_mode)
         if result and interactive_mode:
             # Offer command generation for single address
             output_file = f"{addresses[0]}_results.yml"
-            handle_command_generation(output_file, interactive_mode)
+            handle_command_generation(output_file, interactive_mode, addresses)
     
     if interactive_mode:
         print_section_header("Analysis Complete", "🎉")
