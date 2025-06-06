@@ -1,4 +1,20 @@
+# Python
 .venv
-.claude
 __pycache__
-CLAUDE.md
+*.pyc
+
+# Claude Code
+.claude
+
+# Go binaries
+pan-parser
+pan-parser.exe
+
+# Test files
+*_results.yml
+*.log
+!default.log
+
+# OS
+.DS_Store
+Thumbs.db
