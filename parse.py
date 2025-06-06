@@ -57,25 +57,22 @@ class PANLogProcessor:
         address_set = set(addresses)
         ip_to_addresses = {}  # Maps IP netmasks to addresses for redundancy detection
         
-        # Get file size for progress tracking
+        # Get basic file info without expensive line counting
         try:
             import os
             file_size = os.path.getsize(file_path)
-            total_lines = sum(1 for line in open(file_path, 'r'))
+            print(f"{COLOR_INFO}  📄 Processing configuration file: {COLOR_HIGHLIGHT}{os.path.basename(file_path)} ({file_size:,} bytes)")
         except:
-            file_size = 0
-            total_lines = 0
-            
-        print(f"{COLOR_INFO}  📄 Processing configuration file: {COLOR_HIGHLIGHT}{os.path.basename(file_path) if file_size > 0 else 'unknown'}")
-        if total_lines > 0:
-            print(f"{COLOR_INFO}  📊 File contains {COLOR_HIGHLIGHT}{total_lines:,}{COLOR_INFO} configuration lines")
+            print(f"{COLOR_INFO}  📄 Processing configuration file...")
         
         try:
             with open(file_path, 'r') as file:
-                for line_num, line in enumerate(file, 1):
-                    # Show progress every 1000 lines for large files
-                    if total_lines > 5000 and line_num % 1000 == 0:
-                        print_progress_bar(line_num, total_lines, f"Scanning line {line_num:,}")
+                line_count = 0
+                for line in file:
+                    line_count += 1
+                    # Show progress every 25000 lines for large files (much less frequent)
+                    if line_count % 25000 == 0:
+                        print(f"{COLOR_INFO}    Scanning line {line_count:,}...")
                         
                     line = line.strip()
                     if not line:
@@ -102,10 +99,6 @@ class PANLogProcessor:
                     for address in matching_addresses:
                         self.results[address]['matching_lines'].append(line)
                         self._extract_items_from_line(line, address)
-                
-                # Complete the progress bar if it was shown
-                if total_lines > 5000:
-                    print_progress_bar(total_lines, total_lines, "Scanning complete")
                         
         except FileNotFoundError:
             print(f"{COLOR_ERROR}Error: File '{file_path}' not found.")
@@ -250,29 +243,28 @@ class PANLogProcessor:
             
         # Single pass to find rules referencing these groups
         try:
-            # Get total lines for progress tracking
-            try:
-                total_lines = sum(1 for line in open(file_path, 'r'))
-            except:
-                total_lines = 0
-                
+            # Pre-compile all regex patterns for performance
+            import re
+            group_patterns = {}
+            for name, info in all_groups.items():
+                group_patterns[name] = (re.compile(r'\b' + re.escape(name) + r'\b'), info)
+            
             with open(file_path, 'r') as file:
-                for line_num, line in enumerate(file, 1):
-                    # Show progress every 2000 lines for large files
-                    if total_lines > 10000 and line_num % 2000 == 0:
-                        print_progress_bar(line_num, total_lines, f"Analyzing line {line_num:,}")
+                line_count = 0
+                for line in file:
+                    line_count += 1
+                    # Show progress every 50000 lines for large files (much less frequent)
+                    if line_count % 50000 == 0:
+                        print(f"{COLOR_INFO}    Processing line {line_count:,}...")
                         
                     line = line.strip()
                     if not ("security rules" in line or "security-rule" in line):
                         continue
                         
-                    # Check if line references any of our address groups (using word boundaries)
+                    # Check if line references any of our address groups (using pre-compiled patterns)
                     referenced_groups = []
-                    for name, info in all_groups.items():
-                        # Use word boundary regex to match complete group names only
-                        import re
-                        pattern = r'\b' + re.escape(name) + r'\b'
-                        if re.search(pattern, line):
+                    for name, (pattern, info) in group_patterns.items():
+                        if pattern.search(line):
                             referenced_groups.append((name, info))
                     
                     if not referenced_groups:
@@ -305,25 +297,19 @@ class PANLogProcessor:
                         elif group_info['context'] == "device-group":
                             context = f"references address-group '{group_name}' from device-group '{group_info['device_group']}' that contains {target_addr}"
                             
-                        # Add usage context using word boundary matching
-                        import re
-                        group_pattern = r'\b' + re.escape(group_name) + r'\b'
-                        if "destination" in line and re.search(group_pattern, line):
+                        # Add usage context using the already-found pattern
+                        if "destination" in line:
                             # Check if group appears after "destination" keyword
                             dest_parts = line.split("destination")
-                            if len(dest_parts) > 1 and re.search(group_pattern, dest_parts[1]):
+                            if len(dest_parts) > 1 and group_name in dest_parts[1]:
                                 context += " (in destination)"
-                        elif "source" in line and re.search(group_pattern, line):
+                        elif "source" in line:
                             # Check if group appears after "source" keyword  
                             source_parts = line.split("source")
-                            if len(source_parts) > 1 and re.search(group_pattern, source_parts[1]):
+                            if len(source_parts) > 1 and group_name in source_parts[1]:
                                 context += " (in source)"
                             
                         self.results[target_addr]['indirect_rule_contexts'][rule_name] = context
-                
-                # Complete the progress bar if it was shown
-                if total_lines > 10000:
-                    print_progress_bar(total_lines, total_lines, "Analysis complete")
                         
         except Exception as e:
             print(f"{COLOR_ERROR}Error finding indirect rules: {e}")
@@ -335,17 +321,13 @@ class PANLogProcessor:
         
         try:
             # First pass: collect ALL address groups and their members
-            # Get total lines for progress tracking
-            try:
-                total_lines = sum(1 for line in open(file_path, 'r'))
-            except:
-                total_lines = 0
-                
             with open(file_path, 'r') as file:
-                for line_num, line in enumerate(file, 1):
-                    # Show progress every 2500 lines for large files
-                    if total_lines > 12000 and line_num % 2500 == 0:
-                        print_progress_bar(line_num, total_lines, f"Mapping groups {line_num:,}")
+                line_count = 0
+                for line in file:
+                    line_count += 1
+                    # Show progress much less frequently
+                    if line_count % 100000 == 0:
+                        print(f"{COLOR_INFO}    Scanning line {line_count:,}...")
                         
                     line = line.strip()
                     if not line:
@@ -399,10 +381,6 @@ class PANLogProcessor:
                     current_groups = [g['name'] for g in self.results[target_addr]['address_groups']]
                     if group_info['name'] not in current_groups:
                         self.results[target_addr]['address_groups'].append(group_info)
-            
-            # Complete the progress bar if it was shown
-            if total_lines > 12000:
-                print_progress_bar(total_lines, total_lines, "Mapping complete")
                         
         except Exception as e:
             print(f"{COLOR_ERROR}Error finding nested address groups: {e}")
