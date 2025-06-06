@@ -53,52 +53,55 @@ class PANLogProcessor:
         })
         
     def process_file_single_pass(self, file_path, addresses):
-        """Process file once, collecting all needed data for all addresses"""
+        """Process file once, loading into memory for optimal performance"""
         address_set = set(addresses)
         ip_to_addresses = {}  # Maps IP netmasks to addresses for redundancy detection
         
-        # Get basic file info without expensive line counting
+        # Get basic file info
         try:
             import os
             file_size = os.path.getsize(file_path)
-            print(f"{COLOR_INFO}  📄 Processing configuration file: {COLOR_HIGHLIGHT}{os.path.basename(file_path)} ({file_size:,} bytes)")
+            print(f"{COLOR_INFO}  📄 Loading configuration file into memory: {COLOR_HIGHLIGHT}{os.path.basename(file_path)} ({file_size:,} bytes)")
         except:
-            print(f"{COLOR_INFO}  📄 Processing configuration file...")
+            print(f"{COLOR_INFO}  📄 Loading configuration file into memory...")
         
+        # Load entire file into memory for faster processing
         try:
+            print(f"{COLOR_INFO}  🧠 Reading file into memory...")
             with open(file_path, 'r') as file:
-                line_count = 0
-                for line in file:
-                    line_count += 1
-                    # Show progress every 25000 lines for large files (much less frequent)
-                    if line_count % 25000 == 0:
-                        print(f"{COLOR_INFO}    Scanning line {line_count:,}...")
-                        
-                    line = line.strip()
-                    if not line:
-                        continue
-                        
-                    # Check for IP netmask definitions first
-                    ip_match = PATTERNS['ip_netmask'].search(line)
-                    if ip_match:
-                        addr_name, ip_netmask = ip_match.groups()
-                        if addr_name in address_set:
-                            self.results[addr_name]['ip_netmask'] = ip_netmask
-                        # Track all IP mappings for redundancy detection
-                        if ip_netmask not in ip_to_addresses:
-                            ip_to_addresses[ip_netmask] = []
-                        ip_to_addresses[ip_netmask].append((addr_name, line))
+                all_lines = [line.strip() for line in file if line.strip()]  # Remove empty lines during load
+            
+            total_lines = len(all_lines)
+            print(f"{COLOR_INFO}  📊 Loaded {COLOR_HIGHLIGHT}{total_lines:,}{COLOR_INFO} configuration lines into memory")
+            print(f"{COLOR_INFO}  ⚡ Processing in-memory for maximum performance...")
+            
+            # Process all lines in memory
+            for line_num, line in enumerate(all_lines, 1):
+                # Show progress every 50000 lines for large files
+                if line_num % 50000 == 0:
+                    print(f"{COLOR_INFO}    Processing line {line_num:,}/{total_lines:,} ({line_num*100//total_lines}%)")
                     
-                    # Check if line contains any of our target addresses
-                    matching_addresses = [addr for addr in address_set if addr in line]
+                # Check for IP netmask definitions first
+                ip_match = PATTERNS['ip_netmask'].search(line)
+                if ip_match:
+                    addr_name, ip_netmask = ip_match.groups()
+                    if addr_name in address_set:
+                        self.results[addr_name]['ip_netmask'] = ip_netmask
+                    # Track all IP mappings for redundancy detection
+                    if ip_netmask not in ip_to_addresses:
+                        ip_to_addresses[ip_netmask] = []
+                    ip_to_addresses[ip_netmask].append((addr_name, line))
+                
+                # Check if line contains any of our target addresses
+                matching_addresses = [addr for addr in address_set if addr in line]
+                
+                if not matching_addresses:
+                    continue
                     
-                    if not matching_addresses:
-                        continue
-                        
-                    # Process line for each matching address
-                    for address in matching_addresses:
-                        self.results[address]['matching_lines'].append(line)
-                        self._extract_items_from_line(line, address)
+                # Process line for each matching address
+                for address in matching_addresses:
+                    self.results[address]['matching_lines'].append(line)
+                    self._extract_items_from_line(line, address)
                         
         except FileNotFoundError:
             print(f"{COLOR_ERROR}Error: File '{file_path}' not found.")
@@ -113,13 +116,13 @@ class PANLogProcessor:
         print(f"{COLOR_INFO}  🔍 Analyzing redundant address objects...")
         self._find_redundant_addresses(ip_to_addresses, address_set)
         
-        # Find indirect security rules (requires second pass only for address groups)
+        # Find indirect security rules (using in-memory data)
         print(f"{COLOR_INFO}  🔗 Discovering indirect security rule relationships...")
-        self._find_indirect_rules(file_path, addresses)
+        self._find_indirect_rules_memory(all_lines, addresses)
         
-        # Find nested address groups (requires analyzing all groups)
+        # Find nested address groups (using in-memory data)
         print(f"{COLOR_INFO}  📂 Mapping nested address group hierarchies...")
-        self._find_nested_address_groups(file_path, addresses)
+        self._find_nested_address_groups_memory(all_lines, addresses)
         
         return True
     
@@ -313,6 +316,152 @@ class PANLogProcessor:
                         
         except Exception as e:
             print(f"{COLOR_ERROR}Error finding indirect rules: {e}")
+    
+    def _find_indirect_rules_memory(self, all_lines, addresses):
+        """Find security rules that reference address groups containing our addresses (in-memory version)"""
+        # Collect all address groups from results
+        all_groups = {}
+        for addr in addresses:
+            for group in self.results[addr]['address_groups']:
+                all_groups[group['name']] = (group, addr)
+        
+        if not all_groups:
+            return
+            
+        # Pre-compile all regex patterns for performance
+        import re
+        group_patterns = {}
+        for name, info in all_groups.items():
+            group_patterns[name] = (re.compile(r'\b' + re.escape(name) + r'\b'), info)
+        
+        try:
+            # Process lines in memory
+            total_lines = len(all_lines)
+            for line_num, line in enumerate(all_lines, 1):
+                # Show progress every 100000 lines for large files
+                if line_num % 100000 == 0:
+                    print(f"{COLOR_INFO}    Analyzing line {line_num:,}/{total_lines:,} ({line_num*100//total_lines}%)")
+                    
+                if not ("security rules" in line or "security-rule" in line):
+                    continue
+                    
+                # Check if line references any of our address groups (using pre-compiled patterns)
+                referenced_groups = []
+                for name, (pattern, info) in group_patterns.items():
+                    if pattern.search(line):
+                        referenced_groups.append((name, info))
+                
+                if not referenced_groups:
+                    continue
+                    
+                # Extract rule name and device group
+                rule_name, _ = self._extract_security_rule(line, "")
+                if not rule_name:
+                    continue
+                    
+                dg_match = PATTERNS['device_group'].search(line)
+                device_group = dg_match.group(1) if dg_match else "Unknown"
+                
+                # Add to results for each relevant address
+                for group_name, (group_info, target_addr) in referenced_groups:
+                    # Skip if already in direct rules
+                    if rule_name in self.results[target_addr]['direct_rules']:
+                        continue
+                        
+                    if 'indirect_rules' not in self.results[target_addr]:
+                        self.results[target_addr]['indirect_rules'] = {}
+                        self.results[target_addr]['indirect_rule_contexts'] = {}
+                        
+                    self.results[target_addr]['indirect_rules'][rule_name] = device_group
+                    
+                    # Create context
+                    context = f"references address-group '{group_name}' that contains {target_addr}"
+                    if group_info['context'] == "shared":
+                        context = f"references shared address-group '{group_name}' that contains {target_addr}"
+                    elif group_info['context'] == "device-group":
+                        context = f"references address-group '{group_name}' from device-group '{group_info['device_group']}' that contains {target_addr}"
+                        
+                    # Add usage context using the already-found pattern
+                    if "destination" in line:
+                        # Check if group appears after "destination" keyword
+                        dest_parts = line.split("destination")
+                        if len(dest_parts) > 1 and group_name in dest_parts[1]:
+                            context += " (in destination)"
+                    elif "source" in line:
+                        # Check if group appears after "source" keyword  
+                        source_parts = line.split("source")
+                        if len(source_parts) > 1 and group_name in source_parts[1]:
+                            context += " (in source)"
+                        
+                    self.results[target_addr]['indirect_rule_contexts'][rule_name] = context
+                        
+        except Exception as e:
+            print(f"{COLOR_ERROR}Error finding indirect rules: {e}")
+    
+    def _find_nested_address_groups_memory(self, all_lines, addresses):
+        """Find address groups that contain other address groups (in-memory version)"""
+        target_addresses = set(addresses)
+        all_address_groups = {}  # Maps group_name -> (group_info, members_list)
+        
+        try:
+            # Collect ALL address groups and their members from memory
+            total_lines = len(all_lines)
+            for line_num, line in enumerate(all_lines, 1):
+                # Show progress every 150000 lines for large files
+                if line_num % 150000 == 0:
+                    print(f"{COLOR_INFO}    Mapping line {line_num:,}/{total_lines:,} ({line_num*100//total_lines}%)")
+                    
+                # Check for shared address groups
+                match = PATTERNS['address_group_shared'].search(line)
+                if match:
+                    group_name, definition = match.groups()
+                    members = self._parse_group_members(definition)
+                    group_info = {
+                        "name": group_name,
+                        "context": "shared",
+                        "definition": definition
+                    }
+                    all_address_groups[group_name] = (group_info, members)
+                    continue
+                
+                # Check for device group address groups
+                match = PATTERNS['address_group_device'].search(line)
+                if match:
+                    device_group, group_name, definition = match.groups()
+                    members = self._parse_group_members(definition)
+                    group_info = {
+                        "name": group_name,
+                        "context": "device-group",
+                        "device_group": device_group,
+                        "definition": definition
+                    }
+                    all_address_groups[group_name] = (group_info, members)
+            
+            # Second pass: find nested relationships
+            for group_name, (group_info, members) in all_address_groups.items():
+                # Check if this group contains other groups that contain our target addresses
+                relevant_for_addresses = set()
+                
+                for member in members:
+                    # Check if member is another address group that contains our targets
+                    if member in all_address_groups:
+                        _, nested_members = all_address_groups[member]
+                        for target_addr in target_addresses:
+                            if target_addr in nested_members:
+                                relevant_for_addresses.add(target_addr)
+                    
+                    # Also check if member is directly one of our target addresses
+                    if member in target_addresses:
+                        relevant_for_addresses.add(member)
+                
+                # Add this group to results for relevant addresses if not already present
+                for target_addr in relevant_for_addresses:
+                    current_groups = [g['name'] for g in self.results[target_addr]['address_groups']]
+                    if group_info['name'] not in current_groups:
+                        self.results[target_addr]['address_groups'].append(group_info)
+                        
+        except Exception as e:
+            print(f"{COLOR_ERROR}Error finding nested address groups: {e}")
     
     def _find_nested_address_groups(self, file_path, addresses):
         """Find address groups that contain other address groups, which in turn contain our target addresses"""
