@@ -1,9 +1,12 @@
 {
   "name": "pan-parser",
-  "version": "1.0.0",
-  "description": "Interactive PAN log parser",
+  "version": "2.0.0",
+  "description": "High-performance PAN log parser (Go Edition)",
   "scripts": {
     "setup": "bash setup.sh",
-    "parser": "echo 'Starting parser...' && bash setup.sh --with-parser"
+    "parser": "echo 'Starting parser...' && bash setup.sh --with-parser",
+    "build": "go build -o pan-parser main.go",
+    "run": "./pan-parser -i",
+    "test": "./pan-parser -h"
   }
 }
