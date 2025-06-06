@@ -230,8 +230,15 @@ class PANLogProcessor:
                     if not ("security rules" in line or "security-rule" in line):
                         continue
                         
-                    # Check if line references any of our address groups
-                    referenced_groups = [(name, info) for name, info in all_groups.items() if name in line]
+                    # Check if line references any of our address groups (using word boundaries)
+                    referenced_groups = []
+                    for name, info in all_groups.items():
+                        # Use word boundary regex to match complete group names only
+                        import re
+                        pattern = r'\b' + re.escape(name) + r'\b'
+                        if re.search(pattern, line):
+                            referenced_groups.append((name, info))
+                    
                     if not referenced_groups:
                         continue
                         
@@ -262,16 +269,18 @@ class PANLogProcessor:
                         elif group_info['context'] == "device-group":
                             context = f"references address-group '{group_name}' from device-group '{group_info['device_group']}' that contains {target_addr}"
                             
-                        # Add usage context
-                        if "destination" in line and group_name in line:
+                        # Add usage context using word boundary matching
+                        import re
+                        group_pattern = r'\b' + re.escape(group_name) + r'\b'
+                        if "destination" in line and re.search(group_pattern, line):
                             # Check if group appears after "destination" keyword
                             dest_parts = line.split("destination")
-                            if len(dest_parts) > 1 and group_name in dest_parts[1]:
+                            if len(dest_parts) > 1 and re.search(group_pattern, dest_parts[1]):
                                 context += " (in destination)"
-                        elif "source" in line and group_name in line:
+                        elif "source" in line and re.search(group_pattern, line):
                             # Check if group appears after "source" keyword  
                             source_parts = line.split("source")
-                            if len(source_parts) > 1 and group_name in source_parts[1]:
+                            if len(source_parts) > 1 and re.search(group_pattern, source_parts[1]):
                                 context += " (in source)"
                             
                         self.results[target_addr]['indirect_rule_contexts'][rule_name] = context
