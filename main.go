@@ -7,9 +7,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jtbwatson/palo-pan-parsing/processor"
-	"github.com/jtbwatson/palo-pan-parsing/ui"
-	"github.com/jtbwatson/palo-pan-parsing/utils"
+	"palo-pan-parsing/models"
+	"palo-pan-parsing/processor"
+	"palo-pan-parsing/ui"
+	"palo-pan-parsing/utils"
 )
 
 // main function and CLI setup
@@ -48,8 +49,10 @@ func main() {
 }
 
 func runInteractiveMode() {
-	processor := processor.NewPANLogProcessor()
-	ui.RunInteractiveMode(processor, ProcessAddress)
+	panProcessor := processor.NewPANLogProcessor()
+	ui.RunInteractiveMode(panProcessor, func(address string, proc *processor.PANLogProcessor, interactive bool, output string, configFile string) bool {
+		return ProcessAddress(address, proc, interactive, output, configFile)
+	})
 }
 
 func runCommandLineMode(addressFlag, logfile, outputFlag, configFile string) {
@@ -115,16 +118,16 @@ func runCommandLineMode(addressFlag, logfile, outputFlag, configFile string) {
 		if outputFile == "" {
 			outputFile = fmt.Sprintf("%s_results.yml", addresses[0])
 		}
-		ProcessAddress(addresses[0], processor, false, outputFile)
+		ProcessAddress(addresses[0], processor, false, outputFile, logfile)
 	} else {
 		for _, address := range addresses {
-			ProcessAddress(address, processor, false, "")
+			ProcessAddress(address, processor, false, "", logfile)
 		}
 	}
 }
 
 // ProcessAddress processes a single address and generates results
-func ProcessAddress(address string, panProcessor *processor.PANLogProcessor, interactiveMode bool, outputOverride string) bool {
+func ProcessAddress(address string, panProcessor *processor.PANLogProcessor, interactiveMode bool, outputOverride string, configFile string) bool {
 	if interactiveMode {
 		ui.PrintSectionHeader(fmt.Sprintf("Analyzing Address Object: %s", address))
 	}
@@ -192,6 +195,19 @@ func ProcessAddress(address string, panProcessor *processor.PANLogProcessor, int
 			// Offer to generate commands for adding new address to discovered groups
 			if len(itemsDict.AddressGroups) > 0 {
 				ui.PromptAddressGroupCopy(address, itemsDict.AddressGroups, utils.WriteAddressGroupCommands)
+			}
+
+			// Offer to generate cleanup commands for redundant addresses
+			if len(itemsDict.RedundantAddresses) > 0 {
+				ui.PromptRedundantAddressCleanup(
+					address,
+					itemsDict.RedundantAddresses,
+					func(targetAddr string) (*models.CleanupAnalysis, error) {
+						return panProcessor.AnalyzeRedundantAddressCleanupWithReparse(configFile, targetAddr)
+					},
+					panProcessor.GenerateCleanupCommands,
+					utils.WriteCleanupCommands,
+				)
 			}
 		} else {
 			fmt.Println(ui.ColorWarning("No configuration relationships found for this address object."))

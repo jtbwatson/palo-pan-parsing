@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jtbwatson/palo-pan-parsing/models"
-	"github.com/jtbwatson/palo-pan-parsing/processor"
-	"github.com/jtbwatson/palo-pan-parsing/utils"
+	"palo-pan-parsing/models"
+	"palo-pan-parsing/processor"
+	"palo-pan-parsing/utils"
 )
 
 // PromptInput prompts the user for input with a default value
@@ -27,7 +27,7 @@ func PromptInput(prompt, defaultValue string) string {
 }
 
 // RunInteractiveMode runs the interactive mode for the application
-func RunInteractiveMode(panProcessor *processor.PANLogProcessor, processAddress func(string, *processor.PANLogProcessor, bool, string) bool) {
+func RunInteractiveMode(panProcessor *processor.PANLogProcessor, processAddress func(string, *processor.PANLogProcessor, bool, string, string) bool) {
 	utils.ClearScreen()
 	PrintBanner()
 	PrintSectionHeader("Configuration Analysis Setup")
@@ -93,7 +93,7 @@ func RunInteractiveMode(panProcessor *processor.PANLogProcessor, processAddress 
 			outputFile := "multiple_addresses_results.yml"
 			resultsCount := 0
 			for _, address := range addresses {
-				if processAddress(address, panProcessor, true, outputFile) {
+				if processAddress(address, panProcessor, true, outputFile, configFile) {
 					resultsCount++
 				}
 			}
@@ -109,7 +109,7 @@ func RunInteractiveMode(panProcessor *processor.PANLogProcessor, processAddress 
 			var outputFiles []string
 
 			for _, address := range addresses {
-				if processAddress(address, panProcessor, true, "") {
+				if processAddress(address, panProcessor, true, "", configFile) {
 					resultsCount++
 					outputFiles = append(outputFiles, fmt.Sprintf("outputs/%s_results.yml", address))
 				}
@@ -127,7 +127,7 @@ func RunInteractiveMode(panProcessor *processor.PANLogProcessor, processAddress 
 		}
 	} else {
 		// Single address
-		processAddress(addresses[0], panProcessor, true, "")
+		processAddress(addresses[0], panProcessor, true, "", configFile)
 	}
 
 	PrintSectionHeader("Analysis Complete")
@@ -197,6 +197,109 @@ func PromptAddressGroupCopy(originalAddress string, addressGroups []models.Addre
 			fmt.Printf(ColorInfo("  Copy these commands to add '%s' to the same groups as '%s'\n"),
 				newAddressName, originalAddress)
 		}
+	}
+
+	PrintSectionFooter()
+}
+
+// PromptRedundantAddressCleanup offers to generate commands for cleaning up redundant addresses
+func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []models.RedundantAddress, 
+	analyzeCleanup func(string) (*models.CleanupAnalysis, error),
+	generateCommands func(*models.CleanupAnalysis) *models.CleanupCommands,
+	writeCleanupCommands func(string, *models.CleanupCommands) error) {
+	
+	if len(redundantAddresses) == 0 {
+		return
+	}
+
+	fmt.Println()
+	PrintSectionHeader("Redundant Address Cleanup Helper")
+	fmt.Printf(ColorWarning("  Found %s redundant address object(s) with the same IP as '%s'\n"),
+		ColorHighlight(utils.FormatNumber(len(redundantAddresses))), targetAddress)
+	
+	fmt.Println(ColorInfo("  These redundant addresses can be cleaned up by:"))
+	fmt.Println(ColorInfo("    • Replacing all usage with the target address"))
+	fmt.Println(ColorInfo("    • Removing redundant definitions"))
+	fmt.Println(ColorInfo("    • Optimizing scope (promote to shared if used in multiple DGs)"))
+	fmt.Println()
+
+	// Show redundant addresses
+	fmt.Println(ColorInfo("  Redundant addresses found:"))
+	for i, redundant := range redundantAddresses {
+		scope := redundant.DeviceGroup
+		if scope == "shared" {
+			scope = "shared scope"
+		} else {
+			scope = fmt.Sprintf("device-group %s", scope)
+		}
+		fmt.Printf(ColorListItem("    %d. %s (%s) - %s\n"), 
+			i+1, redundant.Name, scope, redundant.IPNetmask)
+	}
+	fmt.Println()
+
+	response := PromptInput("Generate redundant address cleanup commands? (y/n)", "n")
+	if response != "y" && response != "Y" {
+		PrintSectionFooter()
+		return
+	}
+
+	fmt.Println()
+	fmt.Printf(ColorInfo("  Analyzing redundant address usage patterns...\n"))
+	fmt.Printf(ColorInfo("  This may take a moment for large configuration files.\n"))
+	fmt.Println()
+
+	// Perform cleanup analysis
+	analysis, err := analyzeCleanup(targetAddress)
+	if err != nil {
+		fmt.Printf(ColorError("  Error analyzing redundant addresses: %v\n"), err)
+		PrintSectionFooter()
+		return
+	}
+
+	// Show analysis summary
+	PrintSectionHeader("Cleanup Analysis Summary")
+	fmt.Printf(ColorInfo("  Target Address: %s\n"), ColorHighlight(analysis.TargetAddress))
+	
+	if analysis.ShouldPromoteToShared {
+		fmt.Printf(ColorSuccess("  Optimization: Will promote to shared scope (used in %s device groups)\n"), 
+			ColorHighlight(utils.FormatNumber(analysis.TotalDGsAffected)))
+	} else {
+		if analysis.TargetScope == "shared" {
+			fmt.Printf(ColorInfo("  Scope: Already in shared scope - optimal\n"))
+		} else {
+			fmt.Printf(ColorInfo("  Scope: Will use existing %s scope\n"), analysis.TargetScope)
+		}
+	}
+
+	fmt.Printf(ColorInfo("  Redundant addresses to clean: %s\n"), 
+		ColorHighlight(utils.FormatNumber(len(analysis.RedundantUsage))))
+	
+	totalUsageCount := 0
+	for _, usage := range analysis.RedundantUsage {
+		usageCount := len(usage.AddressGroups) + len(usage.SecurityRules) + len(usage.NATRules) + len(usage.ServiceGroups)
+		totalUsageCount += usageCount
+	}
+	fmt.Printf(ColorInfo("  Total usage instances found: %s\n"), 
+		ColorHighlight(utils.FormatNumber(totalUsageCount)))
+	PrintSectionFooter()
+
+	// Generate commands
+	fmt.Printf(ColorInfo("  Generating cleanup commands...\n"))
+	commands := generateCommands(analysis)
+
+	fmt.Println()
+	fmt.Printf(ColorSuccess("  Generated %s cleanup command(s)!\n"), 
+		ColorHighlight(utils.FormatNumber(commands.TotalCommands)))
+	
+	// Write commands to file
+	outputFile := fmt.Sprintf("%s_redundant_cleanup_commands.yml", targetAddress)
+	err = writeCleanupCommands(outputFile, commands)
+	if err != nil {
+		fmt.Printf(ColorError("  Error writing cleanup commands: %v\n"), err)
+	} else {
+		fmt.Printf(ColorSuccess("  Cleanup commands saved to: %s\n"), ColorHighlight("outputs/"+outputFile))
+		fmt.Println(ColorInfo("  Review the commands before applying them to your configuration"))
+		fmt.Println(ColorWarning("  Always test in a non-production environment first!"))
 	}
 
 	PrintSectionFooter()

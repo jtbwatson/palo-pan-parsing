@@ -9,8 +9,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/jtbwatson/palo-pan-parsing/models"
-	"github.com/jtbwatson/palo-pan-parsing/utils"
+	"palo-pan-parsing/models"
+	"palo-pan-parsing/utils"
 )
 
 // PANLogProcessor is the main processor

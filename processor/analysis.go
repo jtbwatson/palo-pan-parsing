@@ -5,8 +5,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/jtbwatson/palo-pan-parsing/models"
-	"github.com/jtbwatson/palo-pan-parsing/utils"
+	"palo-pan-parsing/models"
+	"palo-pan-parsing/utils"
 )
 
 // findRedundantAddresses finds addresses with same IP netmask
