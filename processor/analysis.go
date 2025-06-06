@@ -87,7 +87,7 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 		// Show progress less frequently for better performance
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
 			percentage := float64(lineNum) / float64(totalLines) * 100
-			fmt.Printf("    Analyzing line %s/%s (%.0f%%)\n",
+			p.printf("    Analyzing line %s/%s (%.0f%%)\n",
 				utils.FormatNumber(lineNum), utils.FormatNumber(totalLines), percentage)
 			lastProgress = lineNum
 		}
@@ -193,7 +193,7 @@ func (p *PANLogProcessor) findNestedAddressGroupsMemory(allLines []string, addre
 		// Show progress less frequently for better performance
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
 			percentage := float64(lineNum) / float64(totalLines) * 100
-			fmt.Printf("    Mapping line %s/%s (%.0f%%)\n",
+			p.printf("    Mapping line %s/%s (%.0f%%)\n",
 				utils.FormatNumber(lineNum), utils.FormatNumber(totalLines), percentage)
 			lastProgress = lineNum
 		}

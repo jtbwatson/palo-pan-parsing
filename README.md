@@ -53,7 +53,19 @@ npm run test
 
 ## Usage
 
-### Interactive Mode (Recommended)
+### TUI Mode (Recommended - NEW!)
+```bash
+./pan-parser --tui
+# or via npm: npm run tui
+```
+The new **Terminal User Interface (TUI)** provides a modern, intuitive experience with:
+- **Clean visual interface** with professional blue/purple color scheme
+- **Multi-select operations** - Select and execute multiple post-analysis operations
+- **Guided workflow** - File selection → Address input → Analysis → Operations menu
+- **Real-time feedback** - Progress indicators and status messages
+- **Silent processing** - No output leakage outside the TUI window
+
+### Interactive Mode (Classic)
 ```bash
 ./pan-parser -i
 # or via npm: npm run parser
@@ -61,7 +73,7 @@ npm run test
 # Quick interactive run
 npm run run
 ```
-The interactive mode provides a guided experience with colored terminal output, progress reporting, and prompts for all required inputs. Features multi-address analysis and address group command generation.
+The classic interactive mode provides a guided command-line experience with colored terminal output, progress reporting, and prompts for all required inputs.
 
 ### Command Line Mode
 ```bash
@@ -83,7 +95,8 @@ The interactive mode provides a guided experience with colored terminal output, 
 - `-l`: Path to the PAN configuration log file (default: "default.log")
 - `-o`: Output file name (optional)
 - `-c`: Path to JSON configuration file
-- `-i`: Run in interactive mode
+- `-i`: Run in interactive mode (classic)
+- `--tui`: Run in TUI mode (modern interface)
 - `-h`: Show help
 
 ## Input Format
@@ -94,6 +107,35 @@ set device-group DG-Production security rules "Allow-Web-Traffic" source "web-se
 set shared address-group "web-servers" static [ web-server-01 web-server-02 ]
 set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
 ```
+
+## TUI Interface Features
+
+The modern Terminal User Interface provides an intuitive workflow with multiple screens:
+
+### 🎮 **Navigation Controls**
+- **Arrow Keys / j,k** - Navigate menu options
+- **Space** - Toggle selection (checkboxes)
+- **Enter** - Confirm selection or execute action
+- **Esc** - Go back to previous screen
+- **Ctrl+C / q** - Quit application
+
+### 📱 **Screen Flow**
+1. **Main Menu** - Choose "Analyze Configuration File" or "Exit"
+2. **File Selection** - Enter path to PAN configuration file (with auto-completion)
+3. **Address Input** - Enter single or multiple address names (comma-separated)
+4. **Processing** - Real-time progress with silent background processing
+5. **Additional Options** - Multi-select operations menu:
+   - ☑️ Generate Address Group Commands
+   - ☑️ Generate Cleanup Commands
+   - Execute Selected Operations
+   - Return to Main Menu
+
+### ✨ **Key Benefits**
+- **Multi-Select Operations** - Run multiple post-analysis operations without restarting
+- **Perfect Alignment** - Clean, professional interface with consistent spacing
+- **Smart Navigation** - Automatically skips separator lines
+- **Silent Processing** - No output interference with the TUI display
+- **Real-time Feedback** - Status messages and operation completion notifications
 
 ## Output Format
 
@@ -172,32 +214,45 @@ Expected performance improvements over traditional line-by-line parsing:
 │   └── models.go          # Data structures and type definitions
 ├── processor/
 │   ├── processor.go       # Core processing engine
-│   └── analysis.go        # Advanced analysis algorithms
+│   ├── analysis.go        # Advanced analysis algorithms
+│   └── cleanup.go         # Redundant address cleanup logic
+├── tui/                   # Modern Terminal User Interface (NEW!)
+│   ├── tui.go            # TUI application entry point
+│   ├── models.go         # TUI state management and logic
+│   ├── styles.go         # Professional color scheme and styling
+│   └── commands.go       # Background command execution
 ├── ui/
-│   ├── display.go         # Terminal display and formatting
-│   └── interactive.go     # Interactive mode implementation
+│   ├── display.go         # Classic terminal display and formatting
+│   └── interactive.go     # Classic interactive mode implementation
 ├── utils/
 │   ├── utils.go          # Utility functions
 │   └── writer.go         # Output generation and file writing
 ├── setup.sh              # Build script
 ├── package.json          # NPM wrapper commands
-├── go.mod               # Go module definition
+├── go.mod               # Go module definition with Bubble Tea
 └── outputs/             # Generated analysis results
 ```
 
 ### Component Responsibilities
 - **Main**: Command-line interface, flag parsing, and orchestration
 - **Models**: Type-safe data structures, regex patterns, result models
-- **Processor**: Core parsing engine, pattern matching, relationship analysis
-- **UI**: User interface layer with color formatting and interactive mode
+- **Processor**: Core parsing engine, pattern matching, relationship analysis, silent mode support
+- **TUI**: Modern Terminal User Interface with Bubble Tea framework, multi-select operations, professional styling
+- **UI**: Classic user interface layer with color formatting and interactive mode
 - **Utils**: Reusable utilities for formatting, parsing, and file operations
 
 ## Build Requirements
 
-- **Go 1.20+**: Required for building the application (as specified in go.mod)
-- **No Runtime Dependencies**: Uses only Go standard library
+- **Go 1.23+**: Required for building the application (as specified in go.mod)
+- **Bubble Tea Framework**: Modern TUI framework for the new interface
+- **Lipgloss**: Styling library for professional terminal UI appearance
 
-The tool is completely self-contained after building - no external dependencies required.
+### Dependencies
+- **Runtime**: Minimal external dependencies - primarily Bubble Tea ecosystem
+- **Core Logic**: Uses only Go standard library for processing
+- **TUI**: Bubble Tea, Lipgloss for modern terminal interface
+
+The tool is self-contained after building with all dependencies statically linked.
 
 ## License
 

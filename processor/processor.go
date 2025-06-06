@@ -17,6 +17,7 @@ import (
 type PANLogProcessor struct {
 	Results  map[string]*models.AddressResult
 	Patterns *models.Patterns
+	Silent   bool // If true, suppress all output
 }
 
 // NewPatterns creates and compiles all regex patterns
@@ -41,6 +42,21 @@ func NewPANLogProcessor() *PANLogProcessor {
 	return &PANLogProcessor{
 		Results:  make(map[string]*models.AddressResult),
 		Patterns: NewPatterns(),
+		Silent:   false,
+	}
+}
+
+// printf conditionally prints if not in silent mode
+func (p *PANLogProcessor) printf(format string, args ...interface{}) {
+	if !p.Silent {
+		fmt.Printf(format, args...)
+	}
+}
+
+// println conditionally prints if not in silent mode
+func (p *PANLogProcessor) println(msg string) {
+	if !p.Silent {
+		fmt.Println(msg)
 	}
 }
 
@@ -76,7 +92,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		return fmt.Errorf("error accessing file: %w", err)
 	}
 
-	fmt.Printf("  Loading configuration file into memory: %s (%s)\n",
+	p.printf("  Loading configuration file into memory: %s (%s)\n",
 		fileInfo.Name(),
 		utils.FormatBytes(fileInfo.Size()))
 
@@ -87,7 +103,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	}
 	defer file.Close()
 
-	fmt.Println("  Reading file into memory...")
+	p.println("  Reading file into memory...")
 
 	// Read all lines into memory
 	var allLines []string
@@ -109,9 +125,9 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	}
 
 	totalLines := len(allLines)
-	fmt.Printf("  Loaded %s configuration lines into memory\n",
+	p.printf("  Loaded %s configuration lines into memory\n",
 		utils.FormatNumber(totalLines))
-	fmt.Println("  Processing in-memory for maximum performance...")
+	p.println("  Processing in-memory for maximum performance...")
 
 	// Note: Using simple substring matching to match Python behavior
 	// This ensures addresses like "someserver-rebuild" match when searching for "someserver"
@@ -131,7 +147,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		// Show progress less frequently for better performance
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
 			percentage := float64(lineNum) / float64(totalLines) * 100
-			fmt.Printf("    Processing line %s/%s (%.0f%%)\n",
+			p.printf("    Processing line %s/%s (%.0f%%)\n",
 				utils.FormatNumber(lineNum), utils.FormatNumber(totalLines), percentage)
 			lastProgress = lineNum
 		}
@@ -185,18 +201,18 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		}
 	}
 
-	fmt.Println("  Initial scan complete")
+	p.println("  Initial scan complete")
 
 	// Process redundant addresses
-	fmt.Println("  Analyzing redundant address objects...")
+	p.println("  Analyzing redundant address objects...")
 	p.findRedundantAddresses(ipToAddresses, addressSet)
 
 	// Find indirect security rules (using in-memory data)
-	fmt.Println("  Discovering indirect security rule relationships...")
+	p.println("  Discovering indirect security rule relationships...")
 	p.findIndirectRulesMemory(allLines, addresses)
 
 	// Find nested address groups (using in-memory data)
-	fmt.Println("  Mapping nested address group hierarchies...")
+	p.println("  Mapping nested address group hierarchies...")
 	p.findNestedAddressGroupsMemory(allLines, addresses)
 
 	return nil

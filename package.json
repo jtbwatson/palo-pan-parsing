@@ -7,6 +7,7 @@
     "parser": "echo 'Starting parser...' && bash setup.sh --with-parser",
     "build": "go build -o pan-parser main.go",
     "run": "./pan-parser -i",
+    "tui": "./pan-parser --tui",
     "test": "./pan-parser -h"
   }
 }

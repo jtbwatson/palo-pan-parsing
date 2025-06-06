@@ -9,6 +9,7 @@ import (
 
 	"palo-pan-parsing/models"
 	"palo-pan-parsing/processor"
+	"palo-pan-parsing/tui"
 	"palo-pan-parsing/ui"
 	"palo-pan-parsing/utils"
 )
@@ -21,6 +22,7 @@ func main() {
 		outputFlag  = flag.String("o", "", "Output file name")
 		configFile  = flag.String("c", "", "Path to configuration file")
 		interactive = flag.Bool("i", false, "Run in interactive mode")
+		tuiMode     = flag.Bool("tui", false, "Run in TUI mode (Bubble Tea interface)")
 		help        = flag.Bool("h", false, "Show help")
 	)
 
@@ -41,10 +43,19 @@ func main() {
 		return
 	}
 
-	if *interactive || (*addressFlag == "" && *configFile == "") {
+	if *tuiMode {
+		runTUIMode()
+	} else if *interactive || (*addressFlag == "" && *configFile == "") {
 		runInteractiveMode()
 	} else {
 		runCommandLineMode(*addressFlag, *logfile, *outputFlag, *configFile)
+	}
+}
+
+func runTUIMode() {
+	if err := tui.Run(); err != nil {
+		fmt.Printf("Error running TUI: %v\n", err)
+		os.Exit(1)
 	}
 }
 

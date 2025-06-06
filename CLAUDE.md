@@ -24,7 +24,11 @@ npm run test
 
 ### Usage
 ```bash
-# Run the parser in interactive mode (recommended for new users)
+# Run in modern TUI mode (recommended - NEW!)
+./pan-parser --tui
+# or via npm: npm run tui
+
+# Run the parser in classic interactive mode
 ./pan-parser -i
 # or via npm: npm run parser
 
@@ -47,21 +51,26 @@ npm run run
 ## Architecture Notes
 
 ### Core Functionality
-- **Main Entry (`main.go`)**: Command-line interface, flag parsing, and high-level orchestration
-- **Processor Package (`processor/`)**: Core parsing engine with optimized algorithms
-  - `processor.go`: Main processing logic, file parsing, and pattern matching
+- **Main Entry (`main.go`)**: Command-line interface, flag parsing, and high-level orchestration with TUI/interactive mode routing
+- **Processor Package (`processor/`)**: Core parsing engine with optimized algorithms and silent mode support
+  - `processor.go`: Main processing logic, file parsing, pattern matching, and conditional output
   - `analysis.go`: Advanced analysis features (redundant addresses, indirect rules, nested groups)
   - `cleanup.go`: Redundant address cleanup analysis and command generation
 - **Models Package (`models/`)**: Data structures and type definitions
   - `models.go`: All data models, regex patterns, and result structures
-- **UI Package (`ui/`)**: User interface and terminal interaction
+- **TUI Package (`tui/`)**: Modern Terminal User Interface (NEW!)
+  - `tui.go`: Main TUI application entry point and program configuration
+  - `models.go`: TUI state management, navigation logic, and multi-select operations
+  - `styles.go`: Professional blue/purple color scheme and consistent styling
+  - `commands.go`: Background command execution and silent processing coordination
+- **UI Package (`ui/`)**: Classic user interface and terminal interaction
   - `display.go`: Color formatting and output display functions
-  - `interactive.go`: Interactive mode implementation with guided user experience
+  - `interactive.go`: Classic interactive mode implementation with guided user experience
 - **Utils Package (`utils/`)**: Utility functions and file operations
   - `utils.go`: Formatting, parsing, and system utilities
   - `writer.go`: Structured YAML output generation and file writing
 - **Setup Script (`setup.sh`)**: Bash script that builds the Go binary and verifies Go installation
-- **NPM Integration**: Simple package.json provides convenient npm commands that wrap the Go tooling
+- **NPM Integration**: Enhanced package.json with TUI command (`npm run tui`) and existing wrapper commands
 
 ### Key Processing Flow
 1. **Memory-Optimized File Reading**: Loads entire configuration into memory for faster processing (processor/processor.go:63-203)
@@ -88,22 +97,28 @@ npm run run
 - **Smart cleanup analysis** with scope promotion logic and usage pattern detection (processor/cleanup.go)
 
 ### Dependencies
-- **Runtime**: Zero external dependencies - uses only Go standard library
-- **Build Tools**: Go 1.20+ required (as specified in go.mod)
+- **Runtime**: Minimal external dependencies - primarily Bubble Tea ecosystem for TUI
+- **Core Processing**: Uses only Go standard library for analysis logic
+- **TUI Framework**: Bubble Tea and Lipgloss for modern terminal interface
+- **Build Tools**: Go 1.23+ required (as specified in go.mod)
 
 ### File Structure
-- **`main.go`**: CLI interface and orchestration (~202 lines)
+- **`main.go`**: CLI interface and orchestration with TUI/interactive mode routing (~220 lines)
 - **`models/models.go`**: Data structures and type definitions (~102 lines)
-- **`processor/processor.go`**: Core processing engine (~391 lines)
+- **`processor/processor.go`**: Core processing engine with silent mode support (~391 lines)
 - **`processor/analysis.go`**: Advanced analysis algorithms (~282 lines)
 - **`processor/cleanup.go`**: Redundant address cleanup logic (~400+ lines)
-- **`ui/display.go`**: Terminal display and formatting (~75 lines)
-- **`ui/interactive.go`**: Interactive mode implementation (~203 lines)
+- **`tui/tui.go`**: TUI application entry point (~35 lines)
+- **`tui/models.go`**: TUI state management and navigation logic (~560+ lines)
+- **`tui/styles.go`**: Professional color scheme and styling (~85 lines)
+- **`tui/commands.go`**: Background command execution coordination (~195 lines)
+- **`ui/display.go`**: Classic terminal display and formatting (~75 lines)
+- **`ui/interactive.go`**: Classic interactive mode implementation (~203 lines)
 - **`utils/utils.go`**: Utility functions (~88 lines)
 - **`utils/writer.go`**: Output generation and file writing (~288 lines)
 - **`setup.sh`**: Bash script for building and optionally running the parser
-- **`package.json`**: NPM wrapper scripts for convenient command execution
-- **`go.mod`**: Go module definition (minimal, no external dependencies)
+- **`package.json`**: NPM wrapper scripts including TUI command
+- **`go.mod`**: Go module definition with Bubble Tea dependencies
 - **`outputs/`**: Auto-created directory for all result files (YAML format)
 
 ### Output Format
@@ -112,10 +127,44 @@ npm run run
 - **Cleanup Commands**: `{address}_redundant_cleanup_commands.yml` - Generated commands for cleaning up redundant addresses with smart scope promotion
 - **Multi-Address**: `multiple_addresses_results.yml` - Combined analysis when processing multiple addresses
 
+## TUI (Terminal User Interface) Features
+
+The modern TUI mode provides a comprehensive graphical interface within the terminal:
+
+### Interface Architecture
+- **Bubble Tea Framework**: Built on the modern, component-based Bubble Tea library for robust state management
+- **Professional Styling**: Consistent blue/purple color scheme with Lipgloss for visual appeal
+- **Multi-State Navigation**: Seamless transitions between file input, address selection, processing, and results
+- **Silent Processing**: Background operations with no output interference to maintain clean interface
+
+### User Experience Features
+- **Multi-Select Operations**: Checkbox-based selection for post-analysis operations (Address Group Commands, Cleanup Commands)
+- **Smart Navigation**: Arrow keys automatically skip separator lines and invalid selections
+- **Perfect Alignment**: Consistent spacing and character alignment throughout all interface elements
+- **Real-time Feedback**: Progress indicators, status messages, and operation completion notifications
+- **Responsive Design**: Clean layout that adapts to terminal size with proper text wrapping
+
+### Workflow States
+1. **Main Menu**: Choose analysis or exit with visual highlighting
+2. **File Selection**: Enter configuration file path with input validation
+3. **Address Input**: Single or multiple address entry with comma separation support
+4. **Processing Screen**: Silent background analysis with progress indication
+5. **Results Summary**: Analysis completion confirmation with file generation status
+6. **Additional Options**: Multi-select menu for post-analysis operations
+7. **Operation Status**: Feedback screen for command execution results
+
+### Technical Implementation
+- **State Machine**: Clean state management with proper transitions and error handling
+- **Background Commands**: Asynchronous operation execution using Bubble Tea command pattern
+- **Silent Mode Integration**: Processor runs in silent mode to prevent output leakage
+- **Memory Efficient**: Maintains TUI responsiveness even during large file processing
+
 ## Development Notes
 
-- The tool supports both interactive and command-line modes
-- Interactive mode provides guided user experience with colored terminal output and progress reporting
+- The tool supports three modes: modern TUI, classic interactive, and command-line
+- **TUI mode (recommended)**: Modern interface with multi-select operations and visual feedback
+- **Interactive mode**: Classic guided command-line experience with colored terminal output
+- **Command-line mode**: Direct execution for automation and scripting
 - All output files are automatically saved to `outputs/` directory with YAML-like structured format
 - The parser handles quoted rule names and complex PAN configuration syntax
 - Includes redundant address detection to identify objects with same IP netmask

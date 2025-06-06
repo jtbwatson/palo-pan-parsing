@@ -103,7 +103,7 @@ func (p *PANLogProcessor) analyzeRedundantUsage(allLines []string, redundantAddr
 	progressInterval := 300000
 	lastProgress := 0
 
-	fmt.Printf("    Analyzing usage of redundant address '%s'...\n", redundantAddress)
+	p.printf("    Analyzing usage of redundant address '%s'...\n", redundantAddress)
 	
 	matchCount := 0
 
@@ -111,7 +111,7 @@ func (p *PANLogProcessor) analyzeRedundantUsage(allLines []string, redundantAddr
 		// Progress reporting for large files
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
 			percentage := float64(lineNum) / float64(totalLines) * 100
-			fmt.Printf("      Scanning line %s/%s (%.0f%%)\n",
+			p.printf("      Scanning line %s/%s (%.0f%%)\n",
 				utils.FormatNumber(lineNum), utils.FormatNumber(totalLines), percentage)
 			lastProgress = lineNum
 		}
@@ -147,7 +147,7 @@ func (p *PANLogProcessor) analyzeRedundantUsage(allLines []string, redundantAddr
 			}
 			if !found {
 				usage.AddressGroups = append(usage.AddressGroups, *agInfo)
-				fmt.Printf("        Found in address group: %s (context: %s)\n", agInfo.Name, agInfo.Context)
+				p.printf("        Found in address group: %s (context: %s)\n", agInfo.Name, agInfo.Context)
 			}
 		}
 
@@ -175,7 +175,7 @@ func (p *PANLogProcessor) analyzeRedundantUsage(allLines []string, redundantAddr
 		}
 	}
 
-	fmt.Printf("      Found %d lines containing '%s'\n", matchCount, redundantAddress)
+	p.printf("      Found %d lines containing '%s'\n", matchCount, redundantAddress)
 	return usage
 }
 
@@ -400,7 +400,7 @@ func (p *PANLogProcessor) AnalyzeRedundantAddressCleanupWithReparse(filePath, ta
 	}
 	defer file.Close()
 
-	fmt.Printf("  Re-reading configuration file for cleanup analysis...\n")
+	p.printf("  Re-reading configuration file for cleanup analysis...\n")
 
 	// Read all lines into memory
 	var allLines []string
@@ -421,7 +421,7 @@ func (p *PANLogProcessor) AnalyzeRedundantAddressCleanupWithReparse(filePath, ta
 		return nil, fmt.Errorf("error reading file for cleanup analysis: %w", err)
 	}
 
-	fmt.Printf("  Loaded %s lines for cleanup analysis\n", utils.FormatNumber(len(allLines)))
+	p.printf("  Loaded %s lines for cleanup analysis\n", utils.FormatNumber(len(allLines)))
 
 	// Perform the cleanup analysis
 	return p.AnalyzeRedundantAddressCleanup(allLines, targetAddress)
