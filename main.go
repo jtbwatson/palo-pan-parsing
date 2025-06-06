@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // ANSI color codes for terminal output
@@ -38,6 +39,11 @@ func colorHighlight(text string) string { return colorCyan + text + colorReset }
 func colorSecondary(text string) string { return colorMagenta + text + colorReset }
 func colorDimText(text string) string   { return colorDim + colorWhite + text + colorReset }
 func colorListItem(text string) string  { return colorGreen + text + colorReset }
+
+// isWordChar checks if a character is a word character (letter, digit, underscore, hyphen)
+func isWordChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
+}
 
 // Pattern definitions
 type Patterns struct {
@@ -101,19 +107,19 @@ type AddressResult struct {
 	RedundantAddresses    []RedundantAddress          `json:"redundant_addresses"`
 }
 
-// NewAddressResult creates a new initialized AddressResult
+// NewAddressResult creates a new initialized AddressResult with pre-allocated capacity
 func NewAddressResult() *AddressResult {
 	return &AddressResult{
-		MatchingLines:         make([]string, 0),
-		DeviceGroups:          make(map[string]bool),
-		DirectRules:           make(map[string]string),
-		DirectRuleContexts:    make(map[string]string),
-		IndirectRules:         make(map[string]string),
-		IndirectRuleContexts:  make(map[string]string),
-		AddressGroups:         make([]AddressGroup, 0),
-		NATRules:              make(map[string]bool),
-		ServiceGroups:         make(map[string]bool),
-		RedundantAddresses:    make([]RedundantAddress, 0),
+		MatchingLines:         make([]string, 0, 100),        // Pre-allocate for 100 lines
+		DeviceGroups:          make(map[string]bool, 10),     // Pre-allocate for 10 device groups
+		DirectRules:           make(map[string]string, 50),   // Pre-allocate for 50 rules
+		DirectRuleContexts:    make(map[string]string, 50),   // Pre-allocate for 50 contexts
+		IndirectRules:         make(map[string]string, 20),   // Pre-allocate for 20 indirect rules
+		IndirectRuleContexts:  make(map[string]string, 20),   // Pre-allocate for 20 contexts
+		AddressGroups:         make([]AddressGroup, 0, 20),   // Pre-allocate for 20 groups
+		NATRules:              make(map[string]bool, 10),     // Pre-allocate for 10 NAT rules
+		ServiceGroups:         make(map[string]bool, 10),     // Pre-allocate for 10 service groups
+		RedundantAddresses:    make([]RedundantAddress, 0, 5), // Pre-allocate for 5 redundant addresses
 	}
 }
 
@@ -184,42 +190,82 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 		colorHighlight(formatNumber(totalLines)))
 	fmt.Println("  ⚡ Processing in-memory for maximum performance...")
 
-	// Process all lines in memory
-	progressInterval := 50000
-	if totalLines > 1000000 {
-		progressInterval = 100000
+	// Pre-compile address search patterns for performance
+	addressPatterns := make(map[string]*regexp.Regexp)
+	for addr := range addressSet {
+		// Use word boundaries to avoid partial matches
+		addressPatterns[addr] = regexp.MustCompile(`\b` + regexp.QuoteMeta(addr) + `\b`)
 	}
 
+	// Process all lines in memory with optimized batch processing
+	progressInterval := 250000 // Less frequent progress reporting for better performance
+	if totalLines > 5000000 {
+		progressInterval = 500000
+	}
+	lastProgress := 0
+
+	// Use a mutex for thread-safe IP address tracking
+	var ipMutex sync.Mutex
+
+	// Process lines in optimized loop
 	for lineNum, line := range allLines {
-		// Show progress for large files
-		if (lineNum+1)%progressInterval == 0 {
-			percentage := float64(lineNum+1) / float64(totalLines) * 100
+		// Show progress less frequently for better performance
+		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
+			percentage := float64(lineNum) / float64(totalLines) * 100
 			fmt.Printf(colorInfo("    Processing line %s/%s (%.0f%%)\n"), 
-				formatNumber(lineNum+1), formatNumber(totalLines), percentage)
+				formatNumber(lineNum), formatNumber(totalLines), percentage)
+			lastProgress = lineNum
 		}
 
-		// Check for IP netmask definitions first
-		if matches := p.Patterns.IPNetmask.FindStringSubmatch(line); matches != nil {
-			addrName, ipNetmask := matches[1], matches[2]
-			if addressSet[addrName] {
-				p.Results[addrName].IPNetmask = ipNetmask
+		// Fast early rejection for empty or very short lines
+		if len(line) < 10 {
+			continue
+		}
+
+		// Check for IP netmask definitions first (optimized for common case)
+		if strings.Contains(line, "ip-netmask") {
+			if matches := p.Patterns.IPNetmask.FindStringSubmatch(line); matches != nil {
+				addrName, ipNetmask := matches[1], matches[2]
+				if addressSet[addrName] {
+					p.Results[addrName].IPNetmask = ipNetmask
+				}
+				// Track all IP mappings for redundancy detection (thread-safe)
+				ipMutex.Lock()
+				ipToAddresses[ipNetmask] = append(ipToAddresses[ipNetmask], IPAddress{
+					Name: addrName,
+					Line: line,
+				})
+				ipMutex.Unlock()
 			}
-			// Track all IP mappings for redundancy detection
-			ipToAddresses[ipNetmask] = append(ipToAddresses[ipNetmask], IPAddress{
-				Name: addrName,
-				Line: line,
-			})
 		}
 
-		// Check if line contains any of our target addresses
-		matchingAddresses := make([]string, 0)
+		// Fast pre-filter: only check detailed patterns if line might contain addresses
+		hasAddress := false
+		var matchingAddresses []string
+		
+		// Ultra-optimized address matching - single pass through addresses
 		for addr := range addressSet {
-			if strings.Contains(line, addr) {
-				matchingAddresses = append(matchingAddresses, addr)
+			// Fast substring check first
+			if idx := strings.Index(line, addr); idx != -1 {
+				// Quick boundary check before expensive regex
+				lineLen := len(line)
+				addrLen := len(addr)
+				
+				// Check word boundaries manually for common cases
+				isWordStart := (idx == 0 || !isWordChar(line[idx-1]))
+				isWordEnd := (idx+addrLen >= lineLen || !isWordChar(line[idx+addrLen]))
+				
+				if isWordStart && isWordEnd {
+					if !hasAddress {
+						matchingAddresses = make([]string, 0, len(addressSet)) // Pre-allocate capacity
+						hasAddress = true
+					}
+					matchingAddresses = append(matchingAddresses, addr)
+				}
 			}
 		}
 
-		if len(matchingAddresses) == 0 {
+		if !hasAddress {
 			continue
 		}
 
@@ -256,17 +302,19 @@ type IPAddress struct {
 func (p *PANLogProcessor) extractItemsFromLine(line, address string) {
 	result := p.Results[address]
 
-	// Extract device groups
-	if matches := p.Patterns.DeviceGroup.FindStringSubmatch(line); matches != nil {
-		result.DeviceGroups[matches[1]] = true
+	// Cache device group match to avoid multiple regex calls
+	var deviceGroupMatch []string
+	deviceGroupMatch = p.Patterns.DeviceGroup.FindStringSubmatch(line)
+	if deviceGroupMatch != nil {
+		result.DeviceGroups[deviceGroupMatch[1]] = true
 	}
 
-	// Extract security rules with context
+	// Extract security rules with context (reuse cached device group)
 	ruleName, context := p.extractSecurityRule(line, address)
 	if ruleName != "" {
 		var deviceGroup string
-		if matches := p.Patterns.DeviceGroup.FindStringSubmatch(line); matches != nil {
-			deviceGroup = matches[1]
+		if deviceGroupMatch != nil {
+			deviceGroup = deviceGroupMatch[1]
 		} else {
 			deviceGroup = "Unknown"
 		}
@@ -276,17 +324,14 @@ func (p *PANLogProcessor) extractItemsFromLine(line, address string) {
 
 	// Extract address groups
 	if agInfo := p.extractAddressGroup(line); agInfo != nil {
-		// Check if this group is already in the list
+		// Check if this group is already in the list (optimized)
+		groupKey := agInfo.Name + "|" + agInfo.Context + "|" + agInfo.DeviceGroup
 		found := false
 		for _, existing := range result.AddressGroups {
-			if existing.Name == agInfo.Name && existing.Context == agInfo.Context {
-				if agInfo.Context == "device-group" && existing.DeviceGroup == agInfo.DeviceGroup {
-					found = true
-					break
-				} else if agInfo.Context == "shared" {
-					found = true
-					break
-				}
+			existingKey := existing.Name + "|" + existing.Context + "|" + existing.DeviceGroup
+			if existingKey == groupKey {
+				found = true
+				break
 			}
 		}
 		if !found {
@@ -455,32 +500,47 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 	}
 
 	totalLines := len(allLines)
-	progressInterval := 100000
+	progressInterval := 200000 // Less frequent progress reporting
+	lastProgress := 0
 
 	for lineNum, line := range allLines {
-		// Show progress for large files
-		if (lineNum+1)%progressInterval == 0 {
-			percentage := float64(lineNum+1) / float64(totalLines) * 100
+		// Show progress less frequently for better performance
+		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
+			percentage := float64(lineNum) / float64(totalLines) * 100
 			fmt.Printf(colorInfo("    Analyzing line %s/%s (%.0f%%)\n"), 
-				formatNumber(lineNum+1), formatNumber(totalLines), percentage)
+				formatNumber(lineNum), formatNumber(totalLines), percentage)
+			lastProgress = lineNum
 		}
 
-		if !strings.Contains(line, "security rules") && !strings.Contains(line, "security-rule") {
+		// Fast pre-filter for security rules
+		if !strings.Contains(line, "security") {
+			continue
+		}
+		if !strings.Contains(line, "rules") && !strings.Contains(line, "rule") {
 			continue
 		}
 
-		// Check if line references any of our address groups
+		// Check if line references any of our address groups (optimized)
 		var referencedGroups []ReferencedGroup
+		hasMatches := false
+		
+		// Pre-filter with fast string search before regex
 		for name, gp := range groupPatterns {
-			if gp.Pattern.MatchString(line) {
-				referencedGroups = append(referencedGroups, ReferencedGroup{
-					Name: name,
-					Info: gp.Info,
-				})
+			if idx := strings.Index(line, name); idx != -1 {
+				if gp.Pattern.MatchString(line) {
+					if !hasMatches {
+						referencedGroups = make([]ReferencedGroup, 0, len(groupPatterns))
+						hasMatches = true
+					}
+					referencedGroups = append(referencedGroups, ReferencedGroup{
+						Name: name,
+						Info: gp.Info,
+					})
+				}
 			}
 		}
 
-		if len(referencedGroups) == 0 {
+		if !hasMatches {
 			continue
 		}
 
@@ -560,15 +620,22 @@ func (p *PANLogProcessor) findNestedAddressGroupsMemory(allLines []string, addre
 	allAddressGroups := make(map[string]GroupMembers)
 
 	totalLines := len(allLines)
-	progressInterval := 150000
+	progressInterval := 300000 // Less frequent progress for better performance
+	lastProgress := 0
 
 	// Collect ALL address groups and their members from memory
 	for lineNum, line := range allLines {
-		// Show progress for large files
-		if (lineNum+1)%progressInterval == 0 {
-			percentage := float64(lineNum+1) / float64(totalLines) * 100
+		// Show progress less frequently for better performance
+		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
+			percentage := float64(lineNum) / float64(totalLines) * 100
 			fmt.Printf(colorInfo("    Mapping line %s/%s (%.0f%%)\n"), 
-				formatNumber(lineNum+1), formatNumber(totalLines), percentage)
+				formatNumber(lineNum), formatNumber(totalLines), percentage)
+			lastProgress = lineNum
+		}
+
+		// Fast pre-filter for address-group lines
+		if !strings.Contains(line, "address-group") {
+			continue
 		}
 
 		// Check for shared address groups
