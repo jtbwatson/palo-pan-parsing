@@ -5,15 +5,12 @@ A high-performance, modular Go-based command-line utility that analyzes Palo Alt
 ## Quick Start
 
 ```bash
-# 1. Clone and setup
+# 1. Clone and install (one command does everything!)
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
-make setup
-
-# 2. Install globally (recommended)
 make install
 
-# 3. Use from anywhere (runs TUI mode by default)
+# 2. Use from anywhere (runs TUI mode by default)
 pan-parser
 ```
 
@@ -21,15 +18,15 @@ pan-parser
 
 **Global installation:**
 ```bash
-make install   # Install globally
+make install   # Install globally (includes all setup)
 make uninstall # Remove from system
 ```
 
 **Local development:**
 ```bash
-make setup     # Initial setup and build
-make run       # Run locally (TUI mode)
-make verbose   # Run locally (verbose mode)
+make build     # Build only (no install)
+make run       # Build and run locally (TUI mode)
+make verbose   # Build and run locally (verbose mode)
 ```
 
 ## What It Does
@@ -69,10 +66,7 @@ This tool parses PAN configuration exports/logs to help network administrators u
 git clone https://github.com/jtbwatson/palo-pan-parsing.git
 cd palo-pan-parsing
 
-# Setup and build
-make setup
-
-# Install globally (recommended)
+# Install globally (one command does everything!)
 make install
 
 # Verify installation
@@ -127,10 +121,10 @@ pan-parser -h
 
 **Makefile commands:**
 ```bash
-make setup       # Initial setup and build
-make install     # Install globally
-make run         # Run locally (TUI mode)
-make verbose     # Run locally (verbose mode)
+make install     # Install globally (includes all setup)
+make build       # Build only (no install)
+make run         # Build and run locally (TUI mode)
+make verbose     # Build and run locally (verbose mode)
 make help        # Show available targets
 ```
 

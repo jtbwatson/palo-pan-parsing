@@ -1,14 +1,22 @@
 # PAN Log Parser Makefile
 
-.PHONY: build install uninstall clean help run verbose setup
+.PHONY: build install uninstall clean help run verbose
 
 # Default target
 all: build
 
-# Check dependencies and build
-setup:
-	@echo "🔥 PAN Log Parser Setup"
-	@echo "======================"
+
+# Build the application only (no dependency check)
+build:
+	@echo "🔨 Building PAN parser..."
+	@go build -o pan-parser main.go
+	@chmod +x pan-parser
+	@echo "✅ Build complete: ./pan-parser"
+
+# Install globally to system PATH (includes dependency check)
+install:
+	@echo "🔥 PAN Log Parser Installation"
+	@echo "=============================="
 	@if ! command -v go >/dev/null 2>&1; then \
 		echo "❌ Go is not installed. Please install Go 1.23 or later."; \
 		echo "   Visit: https://golang.org/dl/"; \
@@ -20,23 +28,6 @@ setup:
 	@echo "🔨 Building application..."
 	@go build -o pan-parser main.go
 	@chmod +x pan-parser
-	@echo "✅ Setup complete!"
-	@echo ""
-	@echo "Usage:"
-	@echo "  make install    # Install globally"
-	@echo "  make run        # Run locally (TUI mode)"
-	@echo "  make verbose    # Run locally (verbose mode)"
-	@echo "  ./pan-parser    # Direct execution"
-
-# Build the application
-build:
-	@echo "🔨 Building PAN parser..."
-	@go build -o pan-parser main.go
-	@chmod +x pan-parser
-	@echo "✅ Build complete: ./pan-parser"
-
-# Install globally to system PATH
-install: build
 	@echo "🔧 Installing globally..."
 	@if [ -w "/usr/local/bin" ]; then \
 		sudo cp pan-parser /usr/local/bin/; \
@@ -92,9 +83,8 @@ help:
 	@echo "PAN Log Parser Makefile"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  setup     - Check dependencies and build"
-	@echo "  build     - Build the application"
-	@echo "  install   - Build and install globally"
+	@echo "  install   - One-step install: check deps, build, and install globally"
+	@echo "  build     - Build the application only"
 	@echo "  uninstall - Remove from system PATH"
 	@echo "  clean     - Remove build artifacts"
 	@echo "  run       - Build and run (default TUI mode)"
@@ -102,8 +92,7 @@ help:
 	@echo "  help      - Show this help message"
 	@echo ""
 	@echo "Quick start:"
-	@echo "  make setup      # First time setup"
-	@echo "  make install    # Install globally (recommended)"
+	@echo "  make install    # One command does everything!"
 	@echo "  pan-parser      # Use from anywhere"
 	@echo ""
 	@echo "Development:"
