@@ -284,8 +284,7 @@ func (p *PANLogProcessor) extractItemsFromLine(line, address string) {
 	result := p.Results[address]
 
 	// Cache device group match to avoid multiple regex calls
-	var deviceGroupMatch []string
-	deviceGroupMatch = p.Patterns.DeviceGroup.FindStringSubmatch(line)
+	deviceGroupMatch := p.Patterns.DeviceGroup.FindStringSubmatch(line)
 	if deviceGroupMatch != nil {
 		result.DeviceGroups[deviceGroupMatch[1]] = true
 	}
@@ -799,20 +798,20 @@ func main() {
 func runInteractiveMode() {
 	clearScreen()
 	printBanner()
-	printSectionHeader("Configuration Analysis Setup", "")
+	printSectionHeader("Configuration Analysis Setup")
 	fmt.Println(colorInfo("  Welcome to the advanced PAN configuration analyzer!"))
 	fmt.Println(colorInfo("  This tool will help you discover complex relationships"))
 	fmt.Println(colorInfo("  in your Palo Alto Networks configuration logs."))
 	printSectionFooter()
 
 	// Get log file
-	printSectionHeader("Log File Selection", "")
+	printSectionHeader("Log File Selection")
 	defaultLog := "default.log"
 	configFile := promptInput(fmt.Sprintf("Enter path to your PAN configuration log [%s]", defaultLog), defaultLog)
 	printSectionFooter()
 
 	// Get addresses
-	printSectionHeader("Address Object Selection", "")
+	printSectionHeader("Address Object Selection")
 	fmt.Println(colorInfo("  You can analyze multiple address objects simultaneously"))
 	fmt.Println(colorInfo("  For multiple addresses, separate them with commas"))
 	fmt.Printf(colorHighlight("  Example: %s\n"), "webserver1,dbserver2,jumphost3")
@@ -830,7 +829,7 @@ func runInteractiveMode() {
 	printSectionFooter()
 
 	// Run analysis
-	printSectionHeader("Configuration Analysis Engine", "")
+	printSectionHeader("Configuration Analysis Engine")
 	fmt.Printf(colorInfo("  Loading configuration file: %s\n"), colorHighlight(configFile))
 	fmt.Printf(colorInfo("  Analyzing %s address object(s): %s\n"),
 		colorHighlight(formatNumber(len(addresses))),
@@ -849,7 +848,7 @@ func runInteractiveMode() {
 
 	// Process results for each address
 	if len(addresses) > 1 {
-		printSectionHeader(fmt.Sprintf("Multi-Address Analysis (%d objects)", len(addresses)), "")
+		printSectionHeader(fmt.Sprintf("Multi-Address Analysis (%d objects)", len(addresses)))
 		fmt.Printf(colorInfo("  Ready to process: %s\n"), colorHighlight(strings.Join(addresses, ", ")))
 		fmt.Println(colorInfo("  Choose your preferred output format:"))
 		fmt.Printf(colorInfo("     • %s: Combined report with all results\n"), colorHighlight("Single file"))
@@ -900,7 +899,7 @@ func runInteractiveMode() {
 		ProcessAddress(addresses[0], processor, true, "")
 	}
 
-	printSectionHeader("Analysis Complete", "")
+	printSectionHeader("Analysis Complete")
 	fmt.Println(colorSuccess("  Analysis session completed successfully!"))
 	fmt.Println(colorInfo("  Your PAN configuration analysis is ready for review"))
 	fmt.Println(colorDimText("  Tool: PAN Log Parser v2.0 (Go Edition) | Advanced Configuration Analysis"))
@@ -1035,8 +1034,8 @@ func printBanner() {
 	fmt.Println(colorDimText("    Supports nested address groups, security rules & more"))
 }
 
-func printSectionHeader(title, icon string) {
-	headerContent := fmt.Sprintf("─%s %s", icon, title)
+func printSectionHeader(title string) {
+	headerContent := fmt.Sprintf("─ %s", title)
 	remainingWidth := 60 - len(headerContent)
 	if remainingWidth < 0 {
 		remainingWidth = 0
@@ -1163,24 +1162,15 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 		fmt.Fprintf(file, "  # No matching lines found\n")
 	}
 
-	// Category sections with enhanced formatting
-	categoryIcons := map[string]string{
-		"Device Groups":                                "",
-		"Direct Security Rules":                        "",
-		"Indirect Security Rules (via Address Groups)": "",
-		"Address Groups":                               "",
-		"NAT Rules":                                    "",
-		"Service Groups":                               "",
-		"Redundant Addresses":                          "",
-	}
+	// Category sections
 
 	// Write each category
-	writeCategory(file, "Device Groups", categoryIcons["Device Groups"], itemsDict.DeviceGroups)
-	writeSecurityRulesCategory(file, "Direct Security Rules", categoryIcons["Direct Security Rules"], itemsDict.DirectSecurityRules)
-	writeSecurityRulesCategory(file, "Indirect Security Rules (via Address Groups)", categoryIcons["Indirect Security Rules (via Address Groups)"], itemsDict.IndirectSecurityRules)
+	writeCategory(file, "Device Groups", itemsDict.DeviceGroups)
+	writeSecurityRulesCategory(file, "Direct Security Rules", itemsDict.DirectSecurityRules)
+	writeSecurityRulesCategory(file, "Indirect Security Rules (via Address Groups)", itemsDict.IndirectSecurityRules)
 	writeAddressGroupsCategory(file, itemsDict.AddressGroups)
-	writeCategory(file, "NAT Rules", categoryIcons["NAT Rules"], itemsDict.NATRules)
-	writeCategory(file, "Service Groups", categoryIcons["Service Groups"], itemsDict.ServiceGroups)
+	writeCategory(file, "NAT Rules", itemsDict.NATRules)
+	writeCategory(file, "Service Groups", itemsDict.ServiceGroups)
 	writeRedundantAddressesCategory(file, itemsDict.RedundantAddresses)
 
 	// Add footer
@@ -1193,7 +1183,7 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 	return nil
 }
 
-func writeCategory(file *os.File, category, icon string, items []string) {
+func writeCategory(file *os.File, category string, items []string) {
 	count := len(items)
 	fmt.Fprintf(file, "\n# %s\n", strings.ToUpper(category))
 	fmt.Fprintf(file, "# Found: %d item", count)
@@ -1212,7 +1202,7 @@ func writeCategory(file *os.File, category, icon string, items []string) {
 	fmt.Fprintf(file, "\n")
 }
 
-func writeSecurityRulesCategory(file *os.File, category, icon string, items []string) {
+func writeSecurityRulesCategory(file *os.File, category string, items []string) {
 	count := len(items)
 	fmt.Fprintf(file, "\n# %s\n", strings.ToUpper(category))
 	fmt.Fprintf(file, "# Found: %d item", count)
@@ -1231,9 +1221,7 @@ func writeSecurityRulesCategory(file *os.File, category, icon string, items []st
 				dgPart := parts[1]
 
 				// Remove only the final closing parenthesis
-				if strings.HasSuffix(dgPart, ")") {
-					dgPart = dgPart[:len(dgPart)-1]
-				}
+				dgPart = strings.TrimSuffix(dgPart, ")")
 
 				var deviceGroup, context string
 				if strings.Contains(dgPart, ", ") {
@@ -1334,7 +1322,7 @@ func writeRedundantAddressesCategory(file *os.File, addresses []RedundantAddress
 // ProcessAddress processes a single address and generates results
 func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode bool, outputOverride string) bool {
 	if interactiveMode {
-		printSectionHeader(fmt.Sprintf("Analyzing Address Object: %s", address), "")
+		printSectionHeader(fmt.Sprintf("Analyzing Address Object: %s", address))
 	}
 
 	result, exists := processor.Results[address]
@@ -1373,29 +1361,20 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 	if interactiveMode {
 		fmt.Println(colorSuccess("  Analysis complete! Report generated successfully"))
 		printSectionFooter()
-		printSectionHeader("Discovery Summary", "")
+		printSectionHeader("Discovery Summary")
 	} else {
 		fmt.Printf(colorSuccess("Results written to %s\n"), outputFile)
 	}
 
-	// Enhanced summary with icons
-	categoryIcons := map[string]string{
-		"Device Groups":                                "",
-		"Direct Security Rules":                        "",
-		"Indirect Security Rules (via Address Groups)": "",
-		"Address Groups":                               "",
-		"NAT Rules":                                    "",
-		"Service Groups":                               "",
-		"Redundant Addresses":                          "",
-	}
+	// Enhanced summary
 
-	printResultsSummary("Device Groups", len(itemsDict.DeviceGroups), categoryIcons["Device Groups"])
-	printResultsSummary("Direct Security Rules", len(itemsDict.DirectSecurityRules), categoryIcons["Direct Security Rules"])
-	printResultsSummary("Indirect Security Rules (via Address Groups)", len(itemsDict.IndirectSecurityRules), categoryIcons["Indirect Security Rules (via Address Groups)"])
-	printResultsSummary("Address Groups", len(itemsDict.AddressGroups), categoryIcons["Address Groups"])
-	printResultsSummary("NAT Rules", len(itemsDict.NATRules), categoryIcons["NAT Rules"])
-	printResultsSummary("Service Groups", len(itemsDict.ServiceGroups), categoryIcons["Service Groups"])
-	printResultsSummary("Redundant Addresses", len(itemsDict.RedundantAddresses), categoryIcons["Redundant Addresses"])
+	printResultsSummary("Device Groups", len(itemsDict.DeviceGroups))
+	printResultsSummary("Direct Security Rules", len(itemsDict.DirectSecurityRules))
+	printResultsSummary("Indirect Security Rules (via Address Groups)", len(itemsDict.IndirectSecurityRules))
+	printResultsSummary("Address Groups", len(itemsDict.AddressGroups))
+	printResultsSummary("NAT Rules", len(itemsDict.NATRules))
+	printResultsSummary("Service Groups", len(itemsDict.ServiceGroups))
+	printResultsSummary("Redundant Addresses", len(itemsDict.RedundantAddresses))
 
 	if interactiveMode {
 		printSectionFooter()
@@ -1419,7 +1398,7 @@ func ProcessAddress(address string, processor *PANLogProcessor, interactiveMode 
 	return true
 }
 
-func printResultsSummary(category string, count int, icon string) {
+func printResultsSummary(category string, count int) {
 	if count > 0 {
 		fmt.Printf(colorSuccess("  %s: %s found\n"), category, colorHighlight(formatNumber(count)))
 	} else {
@@ -1430,7 +1409,7 @@ func printResultsSummary(category string, count int, icon string) {
 // promptAddressGroupCopy offers to generate commands for adding a new address to discovered groups
 func promptAddressGroupCopy(originalAddress string, addressGroups []AddressGroup) {
 	fmt.Println()
-	printSectionHeader("Address Group Configuration Helper", "")
+	printSectionHeader("Address Group Configuration Helper")
 	fmt.Printf(colorInfo("  Found %s address group(s) containing '%s'\n"),
 		colorHighlight(formatNumber(len(addressGroups))), originalAddress)
 	fmt.Println(colorInfo("  Would you like to generate commands to add a new address object"))
