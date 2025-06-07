@@ -249,7 +249,7 @@ func (m Model) viewFileInput() string {
 	}
 	cursor := "█"
 
-	s.WriteString("File: " + inputFieldStyle.Render(displayText) + cursor + "\n\n")
+	s.WriteString(inputFieldStyle.Render("File: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
 
 	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
 
@@ -308,7 +308,7 @@ func (m Model) viewAddressInput() string {
 		// Show placeholder when empty
 		s.WriteString("Address(es): " + cursor + "\n\n")
 	} else {
-		s.WriteString("Address(es): " + inputFieldStyle.Render(displayText) + cursor + "\n\n")
+		s.WriteString(inputFieldStyle.Render("Address(es): ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
 	}
 
 	s.WriteString("Configuration file: " + highlightStyle.Render(m.logFile) + "\n\n")
@@ -723,7 +723,7 @@ func (m Model) viewNewAddressInput() string {
 	if displayText == "" {
 		s.WriteString("New Address Name: " + placeholderStyle.Render("my-new-address") + "\n\n")
 	} else {
-		s.WriteString("New Address Name: " + inputFieldStyle.Render(displayText) + cursor + "\n\n")
+		s.WriteString(inputFieldStyle.Render("New Address Name: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
 	}
 
 	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))

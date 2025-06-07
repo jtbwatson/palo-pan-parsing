@@ -3,15 +3,16 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	// Colors - Professional blue/purple theme
-	primaryColor   = lipgloss.Color("#7C3AED") // Purple
-	secondaryColor = lipgloss.Color("#3B82F6") // Blue
+	// Colors - Bubble Tea guide color scheme
+	primaryColor   = lipgloss.Color("#347aeb") // Blue
+	secondaryColor = lipgloss.Color("#636363") // Gray
 	// accentColor    = lipgloss.Color("#06B6D4")  // Cyan (unused, kept for future use)
-	successColor = lipgloss.Color("#10B981") // Green
-	warningColor = lipgloss.Color("#F59E0B") // Amber
-	errorColor   = lipgloss.Color("#EF4444") // Red
-	mutedColor   = lipgloss.Color("#6B7280") // Gray
-	textColor    = lipgloss.Color("#F9FAFB") // Light gray
+	successColor = lipgloss.Color("#1fb009") // Green
+	warningColor = lipgloss.Color("#b0ad09") // Yellow
+	errorColor   = lipgloss.Color("#f54242") // Red
+	mutedColor   = lipgloss.Color("#636363") // Gray
+	textColor    = lipgloss.Color("#FFFDF5") // White
+	inputTextColor = lipgloss.Color("#F5E6A8") // Pale Yellow
 
 	// Base styles
 	// baseStyle = lipgloss.NewStyle().
@@ -51,7 +52,12 @@ var (
 
 	// Simple input with just background highlight
 	inputFieldStyle = lipgloss.NewStyle().
-			Foreground(secondaryColor).
+			Foreground(primaryColor).
+			Bold(true)
+
+	// User input text style
+	inputTextStyle = lipgloss.NewStyle().
+			Foreground(inputTextColor).
 			Bold(true)
 
 	// Placeholder text style
