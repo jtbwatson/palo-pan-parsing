@@ -455,8 +455,16 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 			case "Generate Cleanup Commands":
 				if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
 					if configFile, ok := m.analysisResults["configFile"].(string); ok {
-						if addresses, ok := m.analysisResults["addresses"].([]string); ok && len(addresses) > 0 {
-							cmds = append(cmds, generateCleanupCmd(proc, configFile, addresses[0]))
+						if addresses, ok := m.analysisResults["addresses"].([]string); ok {
+							// Generate cleanup commands for all addresses that have redundant addresses
+							for _, address := range addresses {
+								if _, exists := proc.Results[address]; exists {
+									itemsDict := proc.FormatResults(address)
+									if len(itemsDict.RedundantAddresses) > 0 {
+										cmds = append(cmds, generateCleanupCmd(proc, configFile, address))
+									}
+								}
+							}
 						}
 					}
 				}

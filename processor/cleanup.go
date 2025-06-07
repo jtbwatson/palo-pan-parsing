@@ -296,17 +296,19 @@ func (p *PANLogProcessor) generateAddressGroupReplacementCommands(analysis *mode
 			// Create new member list replacing redundant with target
 			newMembers := strings.ReplaceAll(group.Definition, redundantName, analysis.TargetAddress)
 
-			var command string
+			var command, description string
 			if group.Context == "shared" {
 				command = fmt.Sprintf("set shared address-group %s static %s", group.Name, newMembers)
+				description = fmt.Sprintf("Replace %s with %s in address-group %s | shared", redundantName, analysis.TargetAddress, group.Name)
 			} else {
 				command = fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newMembers)
+				description = fmt.Sprintf("Replace %s with %s in address-group %s | %s", redundantName, analysis.TargetAddress, group.Name, group.DeviceGroup)
 			}
 
 			commands = append(commands, models.CleanupCommand{
 				Type:        "replace",
 				Command:     command,
-				Description: fmt.Sprintf("Replace %s with %s in address-group %s", redundantName, analysis.TargetAddress, group.Name),
+				Description: description,
 				Section:     "address_groups",
 			})
 		}
@@ -333,10 +335,12 @@ func (p *PANLogProcessor) generateSecurityRuleReplacementCommands(analysis *mode
 				command = fmt.Sprintf("set device-group %s security rules %s source %s", deviceGroup, ruleName, analysis.TargetAddress)
 			}
 
+			description := fmt.Sprintf("Replace %s with %s in security rule %s | %s", redundantName, analysis.TargetAddress, ruleName, deviceGroup)
+
 			commands = append(commands, models.CleanupCommand{
 				Type:        "replace",
 				Command:     command,
-				Description: fmt.Sprintf("Replace %s with %s in security rule %s (%s)", redundantName, analysis.TargetAddress, ruleName, context),
+				Description: description,
 				Section:     "security_rules",
 			})
 		}
