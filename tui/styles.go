@@ -56,6 +56,11 @@ var (
 		Foreground(secondaryColor).
 		Bold(true)
 	
+	// Placeholder text style
+	placeholderStyle = lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Italic(true)
+	
 	// Status styles
 	successStyle = lipgloss.NewStyle().
 		Foreground(successColor).

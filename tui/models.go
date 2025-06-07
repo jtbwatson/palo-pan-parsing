@@ -1,10 +1,12 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"palo-pan-parsing/processor"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // AppState represents the current state of the application
@@ -17,6 +19,8 @@ const (
 	StateProcessing
 	StateResults
 	StatePostAnalysis
+	StateSelectSourceAddress
+	StateNewAddressInput
 	StateOperationStatus
 	StateError
 )
@@ -32,6 +36,14 @@ type Model struct {
 	addresses   []string
 	addressInput string
 	fileInput   string
+	newAddressInput string
+	
+	// Address group generation
+	addressesWithGroups []string
+	selectedSourceAddress string
+	
+	// Pending operations
+	pendingCommands []tea.Cmd
 	
 	// Processing
 	progress    float64
@@ -89,6 +101,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateResults(msg)
 		case StatePostAnalysis:
 			return m.updatePostAnalysis(msg)
+		case StateSelectSourceAddress:
+			return m.updateSelectSourceAddress(msg)
+		case StateNewAddressInput:
+			return m.updateNewAddressInput(msg)
 		case StateOperationStatus:
 			return m.updateOperationStatus(msg)
 		case StateError:
@@ -117,6 +133,10 @@ func (m Model) View() string {
 		return m.viewResults()
 	case StatePostAnalysis:
 		return m.viewPostAnalysis()
+	case StateSelectSourceAddress:
+		return m.viewSelectSourceAddress()
+	case StateNewAddressInput:
+		return m.viewNewAddressInput()
 	case StateOperationStatus:
 		return m.viewOperationStatus()
 	case StateError:
@@ -413,17 +433,15 @@ func (m Model) updatePostAnalysis(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var selectedOps []string
+	var needsAddressInput bool
 	
 	for i, choice := range m.postAnalysisChoices {
 		if m.postAnalysisSelected[i] {
 			selectedOps = append(selectedOps, choice)
 			switch choice {
 			case "Generate Address Group Commands":
-				if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
-					if addresses, ok := m.analysisResults["addresses"].([]string); ok && len(addresses) > 0 {
-						cmds = append(cmds, generateAddressGroupCmd(proc, addresses[0]))
-					}
-				}
+				// This operation requires new address name input
+				needsAddressInput = true
 			case "Generate Cleanup Commands":
 				if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
 					if configFile, ok := m.analysisResults["configFile"].(string); ok {
@@ -434,6 +452,28 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 				}
 			}
 		}
+	}
+	
+	// If Generate Address Group Commands is selected, handle address selection
+	if needsAddressInput {
+		// Store any other pending commands to execute after address input
+		m.pendingCommands = cmds
+		
+		if len(m.addressesWithGroups) == 1 {
+			// Only one address has groups, go directly to new address input
+			m.selectedSourceAddress = m.addressesWithGroups[0]
+			m.state = StateNewAddressInput
+			m.newAddressInput = ""
+		} else if len(m.addressesWithGroups) > 1 {
+			// Multiple addresses have groups, let user choose
+			m.state = StateSelectSourceAddress
+			m.cursor = 0
+		} else {
+			// No addresses with groups (shouldn't happen)
+			m.operationMessage = "No addresses with address groups found"
+			m.state = StateOperationStatus
+		}
+		return m, nil
 	}
 	
 	if len(cmds) == 0 {
@@ -549,7 +589,7 @@ func (m Model) viewOperationStatus() string {
 		}
 	}
 	
-	s.WriteString(helpStyle.Render("Press any key to return to Additional Options menu"))
+	s.WriteString(helpStyle.Render("Press any key to return to Additional Options menu, q to quit"))
 	
 	return boxStyle.Render(s.String())
 }
@@ -582,6 +622,131 @@ func (m Model) viewError() string {
 	}
 	
 	s.WriteString(helpStyle.Render("Esc to return to menu, q to quit"))
+	
+	return boxStyle.Render(s.String())
+}
+
+// New address input state handlers
+func (m Model) updateNewAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.state = StatePostAnalysis
+		m.newAddressInput = ""
+		m.pendingCommands = nil // Clear pending commands when canceling
+	case "enter":
+		if m.newAddressInput != "" {
+			// Generate address group commands with the new name
+			if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
+				if m.selectedSourceAddress != "" {
+					m.state = StateOperationStatus
+					m.operationMessage = "Executing selected operations..."
+					
+					// Create address group command
+					addressGroupCmd := generateAddressGroupCmdWithName(proc, m.selectedSourceAddress, m.newAddressInput)
+					
+					// If we have pending commands, execute them all together
+					if len(m.pendingCommands) > 0 {
+						// Add the address group command to pending commands
+						allCmds := append([]tea.Cmd{addressGroupCmd}, m.pendingCommands...)
+						m.pendingCommands = nil // Clear pending commands
+						return m, tea.Batch(allCmds...)
+					} else {
+						// Just execute the address group command
+						return m, addressGroupCmd
+					}
+				}
+			}
+		}
+	case "backspace":
+		if len(m.newAddressInput) > 0 {
+			m.newAddressInput = m.newAddressInput[:len(m.newAddressInput)-1]
+		}
+	default:
+		if len(msg.String()) == 1 {
+			m.newAddressInput += msg.String()
+		}
+	}
+	
+	return m, nil
+}
+
+func (m Model) viewNewAddressInput() string {
+	var s strings.Builder
+	
+	title := titleStyle.Render("📝 New Address Name")
+	s.WriteString(title + "\n\n")
+	
+	if m.selectedSourceAddress != "" {
+		s.WriteString(fmt.Sprintf("Source address: %s\n", highlightStyle.Render(m.selectedSourceAddress)))
+	}
+	s.WriteString("Enter the name for the new address object:\n")
+	s.WriteString("(This will be added to the same groups as the source address)\n\n")
+	
+	// Clean input styling
+	displayText := m.newAddressInput
+	cursor := "█"
+	if displayText == "" {
+		s.WriteString("New Address Name: " + placeholderStyle.Render("my-new-address") + cursor + "\n\n")
+	} else {
+		s.WriteString("New Address Name: " + inputFieldStyle.Render(displayText) + cursor + "\n\n")
+	}
+	
+	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
+	
+	return boxStyle.Render(s.String())
+}
+
+// Source address selection state handlers
+func (m Model) updateSelectSourceAddress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.state = StatePostAnalysis
+		m.pendingCommands = nil // Clear pending commands when canceling
+	case "up", "k":
+		if m.cursor > 0 {
+			m.cursor--
+		}
+	case "down", "j":
+		if m.cursor < len(m.addressesWithGroups)-1 {
+			m.cursor++
+		}
+	case "enter":
+		if m.cursor < len(m.addressesWithGroups) {
+			m.selectedSourceAddress = m.addressesWithGroups[m.cursor]
+			m.state = StateNewAddressInput
+			m.newAddressInput = ""
+		}
+	}
+	
+	return m, nil
+}
+
+func (m Model) viewSelectSourceAddress() string {
+	var s strings.Builder
+	
+	title := titleStyle.Render("🎯 Select Source Address")
+	s.WriteString(title + "\n\n")
+	
+	s.WriteString("Multiple addresses have address groups. Select which one to use as the source:\n\n")
+	
+	for i, address := range m.addressesWithGroups {
+		cursor := "  "
+		if i == m.cursor {
+			cursor = "❯ "
+		}
+		
+		if i == m.cursor {
+			s.WriteString(selectedStyle.Render(cursor + address) + "\n")
+		} else {
+			s.WriteString(choiceStyle.Render(cursor + address) + "\n")
+		}
+	}
+	
+	s.WriteString("\n" + helpStyle.Render("↑/↓ to navigate, Enter to select, Esc to go back, Ctrl+C to quit"))
 	
 	return boxStyle.Render(s.String())
 }

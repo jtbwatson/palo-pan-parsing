@@ -243,9 +243,51 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 	fmt.Fprintf(file, "# Commands Generated: %d\n", len(commands))
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
 
-	// Commands section
+	// Address groups details section in results.yml style
+	fmt.Fprintf(file, "# SOURCE ADDRESS GROUPS\n")
+	fmt.Fprintf(file, "Found [%d] address group", len(addressGroups))
+	if len(addressGroups) != 1 {
+		fmt.Fprintf(file, "s")
+	}
+	fmt.Fprintf(file, " containing '%s':\n", originalAddress)
+	fmt.Fprintf(file, "---\n")
+
+	if len(addressGroups) > 0 {
+		for _, group := range addressGroups {
+			if group.Context == "shared" {
+				fmt.Fprintf(file, "%s (shared scope):\n", group.Name)
+				fmt.Fprintf(file, "   └─ Original Command: set shared address-group %s static %s\n", group.Name, group.Definition)
+				fmt.Fprintf(file, "   └─ New Command: set shared address-group %s static %s\n", group.Name, newAddressName)
+				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
+			} else {
+				fmt.Fprintf(file, "%s (device-group - %s):\n", group.Name, group.DeviceGroup)
+				fmt.Fprintf(file, "   └─ Original Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
+				fmt.Fprintf(file, "   └─ New Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, newAddressName)
+				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
+			}
+		}
+	} else {
+		fmt.Fprintf(file, "None discovered\n")
+	}
+	fmt.Fprintf(file, "---\n")
+
+	// Usage instructions section in results.yml style
+	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
+	fmt.Fprintf(file, "Found [4] steps for applying address group commands:\n")
+	fmt.Fprintf(file, "---\n")
+	fmt.Fprintf(file, "1. Create the new address object '%s' with appropriate IP/FQDN configuration\n", newAddressName)
+	fmt.Fprintf(file, "2. Copy the commands from the 'GENERATED CONFIGURATION COMMANDS' section below\n")
+	fmt.Fprintf(file, "3. Paste them into your PAN configuration interface or CLI\n")
+	fmt.Fprintf(file, "4. Commit the changes to apply the new address group memberships\n")
+	fmt.Fprintf(file, "---\n")
+
+	// Commands section in results.yml style (moved after usage instructions)
 	fmt.Fprintf(file, "# GENERATED CONFIGURATION COMMANDS\n")
-	fmt.Fprintf(file, "# Copy and paste these commands to add '%s' to the same address groups as '%s'\n", newAddressName, originalAddress)
+	fmt.Fprintf(file, "Found [%d] command", len(commands))
+	if len(commands) != 1 {
+		fmt.Fprintf(file, "s")
+	}
+	fmt.Fprintf(file, " to add '%s' to same address groups as '%s':\n", newAddressName, originalAddress)
 	fmt.Fprintf(file, "---\n")
 
 	if len(commands) > 0 {
@@ -253,39 +295,9 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 			fmt.Fprintf(file, "%s\n", command)
 		}
 	} else {
-		fmt.Fprintf(file, "# No commands generated\n")
+		fmt.Fprintf(file, "None generated\n")
 	}
-
-	// Address groups details section
-	fmt.Fprintf(file, "\n# SOURCE ADDRESS GROUPS\n")
-	fmt.Fprintf(file, "# These are the address groups that contained '%s'\n", originalAddress)
 	fmt.Fprintf(file, "---\n")
-
-	if len(addressGroups) > 0 {
-		for i, group := range addressGroups {
-			if group.Context == "shared" {
-				fmt.Fprintf(file, "%d. %s (shared scope):\n", i+1, group.Name)
-				fmt.Fprintf(file, "   └─ Original Command: set shared address-group %s static %s\n", group.Name, group.Definition)
-				fmt.Fprintf(file, "   └─ New Command: set shared address-group %s static %s\n", group.Name, newAddressName)
-				fmt.Fprintf(file, "   └─ Members: %s\n\n", group.Definition)
-			} else {
-				fmt.Fprintf(file, "%d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
-				fmt.Fprintf(file, "   └─ Original Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
-				fmt.Fprintf(file, "   └─ New Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, newAddressName)
-				fmt.Fprintf(file, "   └─ Members: %s\n\n", group.Definition)
-			}
-		}
-	} else {
-		fmt.Fprintf(file, "None discovered\n")
-	}
-
-	// Instructions section
-	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
-	fmt.Fprintf(file, "# 1. Create the new address object '%s' with appropriate IP/FQDN configuration\n", newAddressName)
-	fmt.Fprintf(file, "# 2. Copy the commands from the 'GENERATED CONFIGURATION COMMANDS' section above\n")
-	fmt.Fprintf(file, "# 3. Paste them into your PAN configuration interface or CLI\n")
-	fmt.Fprintf(file, "# 4. Commit the changes to apply the new address group memberships\n")
-	fmt.Fprintf(file, "---\n\n")
 
 	// Add footer
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
@@ -360,16 +372,19 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 		}
 
 		fmt.Fprintf(file, "# %s\n", sectionTitle)
-		fmt.Fprintf(file, "# Found: %d command", len(sectionCommands))
+		fmt.Fprintf(file, "Found [%d] command", len(sectionCommands))
 		if len(sectionCommands) != 1 {
 			fmt.Fprintf(file, "s")
 		}
-		fmt.Fprintf(file, "\n---\n")
+		fmt.Fprintf(file, ":\n")
+		fmt.Fprintf(file, "---\n")
 
-		for i, command := range sectionCommands {
-			fmt.Fprintf(file, "%d. %s\n", i+1, command.Description)
+		for _, command := range sectionCommands {
+			fmt.Fprintf(file, "%s:\n", command.Description)
+			fmt.Fprintf(file, "   └─ Command: %s\n", command.Command)
+			fmt.Fprintf(file, "   └─ Section: %s\n", command.Section)
 		}
-		fmt.Fprintf(file, "\n")
+		fmt.Fprintf(file, "---\n")
 		stepNum++
 	}
 
@@ -378,13 +393,14 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 	if commands.TotalCommands == 0 {
 		fmt.Fprintf(file, "No cleanup commands generated - redundant address may not be in use\n")
 	} else {
-		fmt.Fprintf(file, "1. Execute cleanup steps in the numbered order shown above\n")
+		fmt.Fprintf(file, "1. Execute cleanup steps in the order shown above\n")
 		fmt.Fprintf(file, "2. Remove definitions (delete commands) LAST to avoid breaking references\n")
 		fmt.Fprintf(file, "3. Test all commands in non-production environment first\n")
 		fmt.Fprintf(file, "4. Backup configuration before making changes\n")
+		fmt.Fprintf(file, "---\n")
 	}
 
-	// Write actual commands at the bottom
+	// Write actual commands at the bottom in results.yml style
 	stepNum = 1
 	for _, section := range sectionOrder {
 		sectionCommands, exists := commandsBySection[section]
@@ -409,11 +425,17 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
 		}
 
-		fmt.Fprintf(file, "\n# %s\n", sectionTitle)
+		fmt.Fprintf(file, "# %s\n", sectionTitle)
+		fmt.Fprintf(file, "Found [%d] command", len(sectionCommands))
+		if len(sectionCommands) != 1 {
+			fmt.Fprintf(file, "s")
+		}
+		fmt.Fprintf(file, " to execute:\n")
 		fmt.Fprintf(file, "---\n")
 		for _, command := range sectionCommands {
 			fmt.Fprintf(file, "%s\n", command.Command)
 		}
+		fmt.Fprintf(file, "---\n")
 		stepNum++
 	}
 

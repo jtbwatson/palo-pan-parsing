@@ -13,6 +13,7 @@ type ProcessResult struct {
 	Success           bool
 	Error             error
 	Addresses         []string
+	AddressesWithGroups []string
 	HasAddressGroups  bool
 	HasRedundantAddrs bool
 	Processor         *processor.PANLogProcessor
@@ -42,6 +43,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 		}
 		
 		var hasAddressGroups, hasRedundantAddrs bool
+		var addressesWithGroups []string
 		
 		// Generate results for each address
 		for _, address := range addresses {
@@ -56,6 +58,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 			// Check for address groups and redundant addresses
 			if len(itemsDict.AddressGroups) > 0 {
 				hasAddressGroups = true
+				addressesWithGroups = append(addressesWithGroups, address)
 			}
 			if len(itemsDict.RedundantAddresses) > 0 {
 				hasRedundantAddrs = true
@@ -75,6 +78,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 		return ProcessResult{
 			Success:           true,
 			Addresses:         addresses,
+			AddressesWithGroups: addressesWithGroups,
 			HasAddressGroups:  hasAddressGroups,
 			HasRedundantAddrs: hasRedundantAddrs,
 			Processor:         panProcessor,
@@ -97,6 +101,7 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		// This is the initial analysis result
 		m.hasAddressGroups = result.HasAddressGroups
 		m.hasRedundantAddrs = result.HasRedundantAddrs
+		m.addressesWithGroups = result.AddressesWithGroups
 		
 		// Set up post-analysis choices with separators for execution
 		m.postAnalysisChoices = []string{}
@@ -151,6 +156,44 @@ func generateAddressGroupCmd(proc *processor.PANLogProcessor, address string) te
 		// Generate commands (simplified - you might want a new address name input)
 		newAddressName := address + "-new"
 		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", address)
+		
+		// Generate commands
+		var commands []string
+		for _, group := range itemsDict.AddressGroups {
+			if group.Context == "shared" {
+				commands = append(commands, fmt.Sprintf("set shared address-group %s static %s", group.Name, newAddressName))
+			} else {
+				commands = append(commands, fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newAddressName))
+			}
+		}
+		
+		err := utils.WriteAddressGroupCommands(outputFile, address, newAddressName, commands, itemsDict.AddressGroups)
+		if err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("error writing address group commands: %w", err),
+			}
+		}
+		
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+		}
+	})
+}
+
+// generateAddressGroupCmdWithName creates a command to generate address group commands with custom name
+func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, newAddressName string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		itemsDict := proc.FormatResults(address)
+		if len(itemsDict.AddressGroups) == 0 {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("no address groups found for %s", address),
+			}
+		}
+		
+		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", newAddressName)
 		
 		// Generate commands
 		var commands []string
