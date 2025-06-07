@@ -233,7 +233,7 @@ func generateCleanupCmd(proc *processor.PANLogProcessor, configFile, address str
 		}
 		
 		commands := proc.GenerateCleanupCommands(analysis)
-		outputFile := fmt.Sprintf("%s_redundant_cleanup_commands.yml", address)
+		outputFile := fmt.Sprintf("%s_cleanup.yml", address)
 		
 		err = utils.WriteCleanupCommands(outputFile, commands)
 		if err != nil {

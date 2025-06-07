@@ -292,7 +292,7 @@ func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []mo
 		ColorHighlight(utils.FormatNumber(commands.TotalCommands)))
 	
 	// Write commands to file
-	outputFile := fmt.Sprintf("%s_redundant_cleanup_commands.yml", targetAddress)
+	outputFile := fmt.Sprintf("%s_cleanup.yml", targetAddress)
 	err = writeCleanupCommands(outputFile, commands)
 	if err != nil {
 		fmt.Printf(ColorError("  Error writing cleanup commands: %v\n"), err)

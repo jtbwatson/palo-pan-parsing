@@ -119,7 +119,7 @@ make build
 ### Output Format
 - **Main Results**: `{address}_results.yml` - Comprehensive analysis with structured sections
 - **Group Commands**: `{address}_add_to_groups_commands.yml` - Generated CLI commands for adding new addresses to discovered groups
-- **Cleanup Commands**: `{address}_redundant_cleanup_commands.yml` - Generated commands for cleaning up redundant addresses with smart scope promotion
+- **Cleanup Commands**: `{address}_cleanup.yml` - Generated commands for cleaning up redundant addresses with smart scope promotion
 - **Multi-Address**: `multiple_addresses_results.yml` - Combined analysis when processing multiple addresses
 
 ## TUI (Terminal User Interface) Features
