@@ -27,44 +27,43 @@ const (
 
 // Model represents the main TUI model
 type Model struct {
-	state       AppState
-	width       int
-	height      int
-	
+	state  AppState
+	width  int
+	height int
+
 	// Input fields
-	logFile     string
-	addresses   []string
-	addressInput string
-	fileInput   string
+	logFile         string
+	addresses       []string
+	addressInput    string
+	fileInput       string
 	newAddressInput string
-	
+
 	// Address group generation
-	addressesWithGroups []string
+	addressesWithGroups   []string
 	selectedSourceAddress string
-	
+
 	// Pending operations
 	pendingCommands []tea.Cmd
-	
+
 	// Processing
-	progress    float64
-	processing  bool
-	
+	progress float64
+
 	// Results
 	results           string
-	analysisResults   map[string]interface{}
+	analysisResults   map[string]any
 	hasAddressGroups  bool
 	hasRedundantAddrs bool
 	operationMessage  string
-	
+
 	// Error handling
-	err         error
-	
+	err error
+
 	// UI components
-	cursor      int
-	selected    map[int]struct{}
-	choices     []string
-	postAnalysisChoices []string
-	postAnalysisSelected map[int]bool  // Track which post-analysis options are selected
+	cursor               int
+	selected             map[int]struct{}
+	choices              []string
+	postAnalysisChoices  []string
+	postAnalysisSelected map[int]bool // Track which post-analysis options are selected
 }
 
 // NewModel creates a new TUI model
@@ -88,7 +87,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		
+
 	case tea.KeyMsg:
 		switch m.state {
 		case StateMenu:
@@ -110,11 +109,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case StateError:
 			return m.updateError(msg)
 		}
-		
+
 	case ProcessResult:
 		return m.handleProcessResult(msg)
 	}
-	
+
 	return m, nil
 }
 
@@ -142,7 +141,7 @@ func (m Model) View() string {
 	case StateError:
 		return m.viewError()
 	}
-	
+
 	return ""
 }
 
@@ -168,26 +167,26 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewMenu() string {
 	var s strings.Builder
-	
+
 	// Header
 	title := titleStyle.Render("PAN Configuration Log Parser (Go Edition)")
 	subtitle := subtitleStyle.Render("Advanced Palo Alto Networks Configuration Analysis")
-	
+
 	s.WriteString(title + "\n")
 	s.WriteString(subtitle + "\n")
-	
+
 	// Menu options with descriptions
 	descriptions := []string{
 		"Search for address objects and analyze their usage across configuration",
 		"Exit the application",
 	}
-	
+
 	for i, choice := range m.choices {
 		cursor := " "
 		if m.cursor == i {
@@ -203,9 +202,9 @@ func (m Model) viewMenu() string {
 		}
 		s.WriteString("\n") // Extra spacing between option groups
 	}
-	
+
 	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate, Enter to select, q to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -230,30 +229,30 @@ func (m Model) updateFileInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.fileInput += msg.String()
 		}
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewFileInput() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("Configuration File Selection")
 	s.WriteString(title + "\n")
-	
+
 	s.WriteString("Enter the path to your PAN configuration file:\n")
 	s.WriteString(helpStyle.Render("Supports both local files and full file paths") + "\n\n")
-	
+
 	// Clean input styling - just highlight the text, no messy boxes
 	displayText := m.fileInput
 	if displayText == "" {
 		displayText = "default.log"
 	}
 	cursor := "█"
-	
+
 	s.WriteString("File: " + inputFieldStyle.Render(displayText) + cursor + "\n\n")
-	
+
 	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -289,19 +288,19 @@ func (m Model) updateAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.addressInput += msg.String()
 		}
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewAddressInput() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("Address Object Selection")
 	s.WriteString(title + "\n")
-	
+
 	s.WriteString("Enter address object name(s) to analyze:\n")
 	s.WriteString(helpStyle.Render("Use commas to separate multiple addresses (e.g., web1,db1,server2)") + "\n\n")
-	
+
 	// Clean input styling - just highlight the text, no messy boxes
 	displayText := m.addressInput
 	cursor := "█"
@@ -311,33 +310,33 @@ func (m Model) viewAddressInput() string {
 	} else {
 		s.WriteString("Address(es): " + inputFieldStyle.Render(displayText) + cursor + "\n\n")
 	}
-	
+
 	s.WriteString("Configuration file: " + highlightStyle.Render(m.logFile) + "\n\n")
-	
+
 	s.WriteString(helpStyle.Render("Enter to analyze, Esc to go back, Ctrl+C to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
 // Processing state
 func (m Model) viewProcessing() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("Processing Configuration...")
 	s.WriteString(title + "\n\n")
-	
+
 	s.WriteString("Analyzing: " + highlightStyle.Render(strings.Join(m.addresses, ", ")) + "\n")
 	s.WriteString("File: " + highlightStyle.Render(m.logFile) + "\n\n")
-	
+
 	// Simple progress indicator
 	progress := "Working"
-	for i := 0; i < int(m.progress*3)%4; i++ {
+	for range int(m.progress*3) % 4 {
 		progress += "."
 	}
 	s.WriteString(progress + "\n\n")
-	
+
 	s.WriteString(helpStyle.Render("Please wait while we analyze your configuration..."))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -354,18 +353,18 @@ func (m Model) updateResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addresses = nil
 		m.results = ""
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewResults() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("Analysis Complete")
 	s.WriteString(title + "\n\n")
-	
+
 	s.WriteString("Analysis results have been generated:\n\n")
-	
+
 	if len(m.addresses) == 1 {
 		filename := m.addresses[0] + "_results.yml"
 		s.WriteString("📄 " + highlightStyle.Render("outputs/"+filename) + "\n")
@@ -375,11 +374,11 @@ func (m Model) viewResults() string {
 			s.WriteString("   • " + addr + "_results.yml\n")
 		}
 	}
-	
+
 	s.WriteString("\n" + successStyle.Render("✅ Configuration analysis completed successfully!") + "\n\n")
-	
+
 	s.WriteString(helpStyle.Render("Esc to return to menu, q to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -436,7 +435,7 @@ func (m Model) updatePostAnalysis(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.postAnalysisSelected = make(map[int]bool)
 		}
 	}
-	
+
 	return m, nil
 }
 
@@ -445,7 +444,7 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	var selectedOps []string
 	var needsAddressInput bool
-	
+
 	for i, choice := range m.postAnalysisChoices {
 		if m.postAnalysisSelected[i] {
 			selectedOps = append(selectedOps, choice)
@@ -464,12 +463,12 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 			}
 		}
 	}
-	
+
 	// If Generate Address Group Commands is selected, handle address selection
 	if needsAddressInput {
 		// Store any other pending commands to execute after address input
 		m.pendingCommands = cmds
-		
+
 		if len(m.addressesWithGroups) == 1 {
 			// Only one address has groups, go directly to new address input
 			m.selectedSourceAddress = m.addressesWithGroups[0]
@@ -486,14 +485,14 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 		}
 		return m, nil
 	}
-	
+
 	if len(cmds) == 0 {
 		// No operations selected - show message and stay in current state
 		m.operationMessage = "No operations selected. Use Space to select operations first."
 		m.state = StateOperationStatus
 		return m, nil
 	}
-	
+
 	// Set status message for operations being executed
 	if len(selectedOps) == 1 {
 		m.operationMessage = "Executing: " + selectedOps[0]
@@ -501,39 +500,39 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 		m.operationMessage = "Executing " + strings.Join(selectedOps, " and ")
 	}
 	m.state = StateOperationStatus
-	
+
 	// If only one command, execute it directly
 	if len(cmds) == 1 {
 		return m, cmds[0]
 	}
-	
+
 	// For multiple commands, we need to batch them
 	return m, tea.Batch(cmds...)
 }
 
 func (m Model) viewPostAnalysis() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("Additional Options")
 	s.WriteString(title + "\n")
-	
+
 	s.WriteString("Analysis complete! Select operations to perform:\n\n")
-	
+
 	// Menu options with checkboxes
 	for i, choice := range m.postAnalysisChoices {
 		cursor := " "
 		if m.cursor == i {
 			cursor = ">"
 		}
-		
+
 		// Handle different types of items
 		if choice == "---" {
 			s.WriteString("  ────────────────────────────────\n")
 			continue
 		}
-		
+
 		var line string
-		
+
 		if choice == "Generate Address Group Commands" || choice == "Generate Cleanup Commands" {
 			// Selectable operations with consistent spacing
 			var checkbox string
@@ -542,16 +541,16 @@ func (m Model) viewPostAnalysis() string {
 			} else {
 				checkbox = "[ ]"
 			}
-			
+
 			var displayChoice string
 			if m.cursor == i {
 				displayChoice = selectedStyle.Render(choice)
 			} else {
 				displayChoice = choiceStyle.Render(choice)
 			}
-			
+
 			line = cursor + " " + checkbox + " " + displayChoice
-			
+
 			// Add description below selectable operations
 			var description string
 			switch choice {
@@ -560,7 +559,7 @@ func (m Model) viewPostAnalysis() string {
 			case "Generate Cleanup Commands":
 				description = "Remove redundant address objects and optimize configuration"
 			}
-			
+
 			s.WriteString(line + "\n")
 			if description != "" {
 				s.WriteString("       " + helpStyle.Render(description) + "\n")
@@ -574,16 +573,16 @@ func (m Model) viewPostAnalysis() string {
 			} else {
 				displayChoice = choiceStyle.Render(choice)
 			}
-			
+
 			// cursor(2) + checkbox(4) + space(1) = 7 total characters to align with
-			line = cursor + "      " + displayChoice  // 6 spaces to align properly
+			line = cursor + "      " + displayChoice // 6 spaces to align properly
 		}
-		
+
 		s.WriteString(line + "\n")
 	}
-	
+
 	s.WriteString("\n" + helpStyle.Render("↑/↓ navigate • Space to select • Enter to execute • Esc to go back"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -597,16 +596,16 @@ func (m Model) updateOperationStatus(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state = StatePostAnalysis
 		m.operationMessage = ""
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewOperationStatus() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("Operation Status")
 	s.WriteString(title + "\n")
-	
+
 	if m.operationMessage != "" {
 		if strings.Contains(m.operationMessage, "No operations selected") {
 			s.WriteString(warningStyle.Render(m.operationMessage) + "\n\n")
@@ -614,9 +613,9 @@ func (m Model) viewOperationStatus() string {
 			s.WriteString(m.operationMessage + "\n\n")
 		}
 	}
-	
+
 	s.WriteString(helpStyle.Render("Press any key to return to Additional Options menu, q to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -633,22 +632,22 @@ func (m Model) updateError(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addressInput = ""
 		m.addresses = nil
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewError() string {
 	var s strings.Builder
-	
+
 	title := errorTitleStyle.Render("Error")
 	s.WriteString(title + "\n\n")
-	
+
 	if m.err != nil {
 		s.WriteString(errorStyle.Render(m.err.Error()) + "\n\n")
 	}
-	
+
 	s.WriteString(helpStyle.Render("Esc to return to menu, q to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -668,10 +667,10 @@ func (m Model) updateNewAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				if m.selectedSourceAddress != "" {
 					m.state = StateOperationStatus
 					m.operationMessage = "Executing selected operations..."
-					
+
 					// Create address group command
 					addressGroupCmd := generateAddressGroupCmdWithName(proc, m.selectedSourceAddress, m.newAddressInput)
-					
+
 					// If we have pending commands, execute them all together
 					if len(m.pendingCommands) > 0 {
 						// Add the address group command to pending commands
@@ -694,22 +693,22 @@ func (m Model) updateNewAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.newAddressInput += msg.String()
 		}
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewNewAddressInput() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("New Address Name")
 	s.WriteString(title + "\n")
-	
+
 	if m.selectedSourceAddress != "" {
 		s.WriteString(fmt.Sprintf("Source address: %s\n", highlightStyle.Render(m.selectedSourceAddress)))
 	}
 	s.WriteString("Enter the name for the new address object:\n")
 	s.WriteString("(This will be added to the same groups as the source address)\n\n")
-	
+
 	// Clean input styling
 	displayText := m.newAddressInput
 	cursor := "█"
@@ -718,9 +717,9 @@ func (m Model) viewNewAddressInput() string {
 	} else {
 		s.WriteString("New Address Name: " + inputFieldStyle.Render(displayText) + cursor + "\n\n")
 	}
-	
+
 	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }
 
@@ -747,32 +746,32 @@ func (m Model) updateSelectSourceAddress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.newAddressInput = ""
 		}
 	}
-	
+
 	return m, nil
 }
 
 func (m Model) viewSelectSourceAddress() string {
 	var s strings.Builder
-	
+
 	title := titleStyle.Render("Select Source Address")
 	s.WriteString(title + "\n\n")
-	
+
 	s.WriteString("Multiple addresses have address groups. Select which one to use as the source:\n\n")
-	
+
 	for i, address := range m.addressesWithGroups {
 		cursor := "  "
 		if i == m.cursor {
 			cursor = "> "
 		}
-		
+
 		if i == m.cursor {
-			s.WriteString(selectedStyle.Render(cursor + address) + "\n")
+			s.WriteString(selectedStyle.Render(cursor+address) + "\n")
 		} else {
-			s.WriteString(choiceStyle.Render(cursor + address) + "\n")
+			s.WriteString(choiceStyle.Render(cursor+address) + "\n")
 		}
 	}
-	
+
 	s.WriteString("\n" + helpStyle.Render("↑/↓ to navigate, Enter to select, Esc to go back, Ctrl+C to quit"))
-	
+
 	return boxStyle.Render(s.String())
 }

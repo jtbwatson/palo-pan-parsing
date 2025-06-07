@@ -11,15 +11,15 @@ import (
 
 // ProcessResult represents the result of file processing
 type ProcessResult struct {
-	Success           bool
-	Error             error
-	Addresses         []string
+	Success             bool
+	Error               error
+	Addresses           []string
 	AddressesWithGroups []string
-	HasAddressGroups  bool
-	HasRedundantAddrs bool
-	Processor         *processor.PANLogProcessor
-	ConfigFile        string
-	OperationComplete bool  // Flag to indicate operation completed, stay in post-analysis
+	HasAddressGroups    bool
+	HasRedundantAddrs   bool
+	Processor           *processor.PANLogProcessor
+	ConfigFile          string
+	OperationComplete   bool // Flag to indicate operation completed, stay in post-analysis
 }
 
 // ProcessProgressMsg represents progress updates during processing
@@ -34,7 +34,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 		// Create processor in silent mode for TUI
 		panProcessor := processor.NewPANLogProcessor()
 		panProcessor.Silent = true
-		
+
 		// Process file silently (no stdout output)
 		if err := panProcessor.ProcessFileSinglePass(logFile, addresses); err != nil {
 			return ProcessResult{
@@ -42,20 +42,20 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 				Error:   err,
 			}
 		}
-		
+
 		var hasAddressGroups, hasRedundantAddrs bool
 		var addressesWithGroups []string
-		
+
 		// Generate results for each address
 		for _, address := range addresses {
 			result, exists := panProcessor.Results[address]
 			if !exists || len(result.MatchingLines) == 0 {
 				continue
 			}
-			
+
 			// Format results
 			itemsDict := panProcessor.FormatResults(address)
-			
+
 			// Check for address groups and redundant addresses
 			if len(itemsDict.AddressGroups) > 0 {
 				hasAddressGroups = true
@@ -64,7 +64,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 			if len(itemsDict.RedundantAddresses) > 0 {
 				hasRedundantAddrs = true
 			}
-			
+
 			// Generate output file
 			outputFile := fmt.Sprintf("%s_results.yml", address)
 			err := utils.WriteResults(outputFile, address, result.MatchingLines, itemsDict)
@@ -75,15 +75,15 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 				}
 			}
 		}
-		
+
 		return ProcessResult{
-			Success:           true,
-			Addresses:         addresses,
+			Success:             true,
+			Addresses:           addresses,
 			AddressesWithGroups: addressesWithGroups,
-			HasAddressGroups:  hasAddressGroups,
-			HasRedundantAddrs: hasRedundantAddrs,
-			Processor:         panProcessor,
-			ConfigFile:        logFile,
+			HasAddressGroups:    hasAddressGroups,
+			HasRedundantAddrs:   hasRedundantAddrs,
+			Processor:           panProcessor,
+			ConfigFile:          logFile,
 		}
 	})
 }
@@ -98,12 +98,12 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 			m.state = StateOperationStatus
 			return m, nil
 		}
-		
+
 		// This is the initial analysis result
 		m.hasAddressGroups = result.HasAddressGroups
 		m.hasRedundantAddrs = result.HasRedundantAddrs
 		m.addressesWithGroups = result.AddressesWithGroups
-		
+
 		// Set up post-analysis choices with separators for execution
 		m.postAnalysisChoices = []string{}
 		if result.HasAddressGroups {
@@ -115,7 +115,7 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "---") // Separator
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "Execute Selected Operations")
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "Return to Main Menu")
-		
+
 		// Reset selections and cursor
 		m.postAnalysisSelected = make(map[int]bool)
 		m.cursor = 0
@@ -123,14 +123,14 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		for m.cursor < len(m.postAnalysisChoices) && m.postAnalysisChoices[m.cursor] == "---" {
 			m.cursor++
 		}
-		
+
 		// Store processor for later use
 		m.analysisResults = map[string]interface{}{
-			"processor":   result.Processor,
-			"configFile":  result.ConfigFile,
-			"addresses":   result.Addresses,
+			"processor":  result.Processor,
+			"configFile": result.ConfigFile,
+			"addresses":  result.Addresses,
 		}
-		
+
 		if len(m.postAnalysisChoices) > 1 {
 			m.state = StatePostAnalysis
 		} else {
@@ -143,46 +143,6 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// generateAddressGroupCmd creates a command to generate address group commands
-func generateAddressGroupCmd(proc *processor.PANLogProcessor, address string) tea.Cmd {
-	return tea.Cmd(func() tea.Msg {
-		itemsDict := proc.FormatResults(address)
-		if len(itemsDict.AddressGroups) == 0 {
-			return ProcessResult{
-				Success: false,
-				Error:   fmt.Errorf("no address groups found for %s", address),
-			}
-		}
-		
-		// Generate commands (simplified - you might want a new address name input)
-		newAddressName := address + "-new"
-		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", address)
-		
-		// Generate commands
-		var commands []string
-		for _, group := range itemsDict.AddressGroups {
-			if group.Context == "shared" {
-				commands = append(commands, fmt.Sprintf("set shared address-group %s static %s", group.Name, newAddressName))
-			} else {
-				commands = append(commands, fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newAddressName))
-			}
-		}
-		
-		err := utils.WriteAddressGroupCommands(outputFile, address, newAddressName, commands, itemsDict.AddressGroups)
-		if err != nil {
-			return ProcessResult{
-				Success: false,
-				Error:   fmt.Errorf("error writing address group commands: %w", err),
-			}
-		}
-		
-		return ProcessResult{
-			Success:           true,
-			OperationComplete: true,
-		}
-	})
-}
-
 // generateAddressGroupCmdWithName creates a command to generate address group commands with custom name
 func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, newAddressName string) tea.Cmd {
 	return tea.Cmd(func() tea.Msg {
@@ -193,9 +153,9 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 				Error:   fmt.Errorf("no address groups found for %s", address),
 			}
 		}
-		
+
 		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", newAddressName)
-		
+
 		// Generate commands
 		var commands []string
 		for _, group := range itemsDict.AddressGroups {
@@ -205,7 +165,7 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 				commands = append(commands, fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newAddressName))
 			}
 		}
-		
+
 		err := utils.WriteAddressGroupCommands(outputFile, address, newAddressName, commands, itemsDict.AddressGroups)
 		if err != nil {
 			return ProcessResult{
@@ -213,7 +173,7 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 				Error:   fmt.Errorf("error writing address group commands: %w", err),
 			}
 		}
-		
+
 		return ProcessResult{
 			Success:           true,
 			OperationComplete: true,
@@ -231,10 +191,10 @@ func generateCleanupCmd(proc *processor.PANLogProcessor, configFile, address str
 				Error:   fmt.Errorf("error analyzing cleanup: %w", err),
 			}
 		}
-		
+
 		commands := proc.GenerateCleanupCommands(analysis)
 		outputFile := fmt.Sprintf("%s_cleanup.yml", address)
-		
+
 		err = utils.WriteCleanupCommands(outputFile, commands)
 		if err != nil {
 			return ProcessResult{
@@ -242,7 +202,7 @@ func generateCleanupCmd(proc *processor.PANLogProcessor, configFile, address str
 				Error:   fmt.Errorf("error writing cleanup commands: %w", err),
 			}
 		}
-		
+
 		return ProcessResult{
 			Success:           true,
 			OperationComplete: true,

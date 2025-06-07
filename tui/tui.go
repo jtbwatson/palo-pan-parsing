@@ -11,16 +11,16 @@ import (
 func Run() error {
 	// Create the model
 	m := NewModel()
-	
+
 	// Create the program with alt screen and mouse support to fully isolate TUI
 	p := tea.NewProgram(m, tea.WithAltScreen(), tea.WithMouseCellMotion())
-	
+
 	// Start the program
 	finalModel, err := p.Run()
 	if err != nil {
 		return fmt.Errorf("error running TUI: %w", err)
 	}
-	
+
 	// Handle any final state
 	if finalModel, ok := finalModel.(Model); ok {
 		if finalModel.err != nil {
@@ -28,6 +28,6 @@ func Run() error {
 			os.Exit(1)
 		}
 	}
-	
+
 	return nil
 }

@@ -63,15 +63,15 @@ func (p *PANLogProcessor) println(msg string) {
 // NewAddressResult creates a new initialized AddressResult with pre-allocated capacity
 func NewAddressResult() *models.AddressResult {
 	return &models.AddressResult{
-		MatchingLines:        make([]string, 0, 100),         // Pre-allocate for 100 lines
-		DeviceGroups:         make(map[string]bool, 10),      // Pre-allocate for 10 device groups
-		DirectRules:          make(map[string]string, 50),    // Pre-allocate for 50 rules
-		DirectRuleContexts:   make(map[string]string, 50),    // Pre-allocate for 50 contexts
-		IndirectRules:        make(map[string]string, 20),    // Pre-allocate for 20 indirect rules
-		IndirectRuleContexts: make(map[string]string, 20),    // Pre-allocate for 20 contexts
+		MatchingLines:        make([]string, 0, 100),                // Pre-allocate for 100 lines
+		DeviceGroups:         make(map[string]bool, 10),             // Pre-allocate for 10 device groups
+		DirectRules:          make(map[string]string, 50),           // Pre-allocate for 50 rules
+		DirectRuleContexts:   make(map[string]string, 50),           // Pre-allocate for 50 contexts
+		IndirectRules:        make(map[string]string, 20),           // Pre-allocate for 20 indirect rules
+		IndirectRuleContexts: make(map[string]string, 20),           // Pre-allocate for 20 contexts
 		AddressGroups:        make([]models.AddressGroup, 0, 20),    // Pre-allocate for 20 groups
-		NATRules:             make(map[string]bool, 10),      // Pre-allocate for 10 NAT rules
-		ServiceGroups:        make(map[string]bool, 10),      // Pre-allocate for 10 service groups
+		NATRules:             make(map[string]bool, 10),             // Pre-allocate for 10 NAT rules
+		ServiceGroups:        make(map[string]bool, 10),             // Pre-allocate for 10 service groups
 		RedundantAddresses:   make([]models.RedundantAddress, 0, 5), // Pre-allocate for 5 redundant addresses
 	}
 }

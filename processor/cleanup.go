@@ -28,11 +28,11 @@ func (p *PANLogProcessor) AnalyzeRedundantAddressCleanup(allLines []string, targ
 
 	// Analyze usage for each redundant address
 	allDGsAffected := make(map[string]bool)
-	
+
 	for _, redundant := range redundantAddresses {
 		usage := p.analyzeRedundantUsage(allLines, redundant.Name)
 		analysis.RedundantUsage[redundant.Name] = usage
-		
+
 		// Track all affected device groups
 		for dg := range usage.UsedInDGs {
 			allDGsAffected[dg] = true
@@ -50,7 +50,7 @@ func (p *PANLogProcessor) AnalyzeRedundantAddressCleanup(allLines []string, targ
 // determineTargetScope finds where the target address is currently defined
 func (p *PANLogProcessor) determineTargetScope(allLines []string, targetAddress string) (scope, deviceGroup string) {
 	targetPattern := regexp.MustCompile(fmt.Sprintf(`set\s+(shared|device-group\s+(\S+))\s+address\s+%s\s+ip-netmask`, regexp.QuoteMeta(targetAddress)))
-	
+
 	for _, line := range allLines {
 		if matches := targetPattern.FindStringSubmatch(line); matches != nil {
 			if matches[1] == "shared" {
@@ -104,7 +104,7 @@ func (p *PANLogProcessor) analyzeRedundantUsage(allLines []string, redundantAddr
 	lastProgress := 0
 
 	p.printf("    Analyzing usage of redundant address '%s'...\n", redundantAddress)
-	
+
 	matchCount := 0
 
 	for lineNum, line := range allLines {
@@ -120,7 +120,7 @@ func (p *PANLogProcessor) analyzeRedundantUsage(allLines []string, redundantAddr
 		if !strings.Contains(line, redundantAddress) {
 			continue
 		}
-		
+
 		matchCount++
 
 		// Extract device group from line
@@ -322,7 +322,7 @@ func (p *PANLogProcessor) generateSecurityRuleReplacementCommands(analysis *mode
 	for redundantName, usage := range analysis.RedundantUsage {
 		for ruleName, deviceGroup := range usage.SecurityRules {
 			context := usage.RuleContexts[ruleName]
-			
+
 			var command string
 			if strings.Contains(context, "source") {
 				command = fmt.Sprintf("set device-group %s security rules %s source %s", deviceGroup, ruleName, analysis.TargetAddress)
@@ -353,7 +353,7 @@ func (p *PANLogProcessor) generateNATRuleReplacementCommands(analysis *models.Cl
 		for natRule := range usage.NATRules {
 			// Note: NAT rule replacement is complex and would need more specific context
 			// This is a simplified version - in practice you'd need to determine if it's source/destination NAT
-			command := fmt.Sprintf("# NAT rule %s contains %s - manual review required for replacement with %s", 
+			command := fmt.Sprintf("# NAT rule %s contains %s - manual review required for replacement with %s",
 				natRule, redundantName, analysis.TargetAddress)
 
 			commands = append(commands, models.CleanupCommand{
@@ -376,7 +376,7 @@ func (p *PANLogProcessor) generateServiceGroupReplacementCommands(analysis *mode
 		for serviceGroup := range usage.ServiceGroups {
 			// Note: Service groups typically contain services, not addresses
 			// This might be a rare case - including for completeness
-			command := fmt.Sprintf("# Service group %s references %s - manual review required for replacement with %s", 
+			command := fmt.Sprintf("# Service group %s references %s - manual review required for replacement with %s",
 				serviceGroup, redundantName, analysis.TargetAddress)
 
 			commands = append(commands, models.CleanupCommand{

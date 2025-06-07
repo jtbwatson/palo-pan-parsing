@@ -15,12 +15,12 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 	if err := EnsureOutputsDir(); err != nil {
 		return fmt.Errorf("error creating outputs directory: %w", err)
 	}
-	
+
 	// Prepend outputs/ to the file path if not already there
 	if !strings.HasPrefix(outputFile, "outputs/") {
 		outputFile = "outputs/" + outputFile
 	}
-	
+
 	file, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %w", err)
@@ -144,21 +144,21 @@ func writeSecurityRulesCategory(file *os.File, category string, items []string, 
 			rules := rulesByDG[dg]
 			for _, rule := range rules {
 				fmt.Fprintf(file, "%d. %s (device-group - %s):\n", itemCount, rule.Name, dg)
-				
+
 				// Find the original command line for this rule
 				var commandLine string
 				for _, line := range matchingLines {
-					if strings.Contains(line, "security") && strings.Contains(line, "rules") && 
-					   strings.Contains(line, rule.Name) && strings.Contains(line, dg) {
+					if strings.Contains(line, "security") && strings.Contains(line, "rules") &&
+						strings.Contains(line, rule.Name) && strings.Contains(line, dg) {
 						commandLine = line
 						break
 					}
 				}
-				
+
 				if commandLine != "" {
 					fmt.Fprintf(file, "   └─ Command: %s\n", commandLine)
 				}
-				
+
 				if rule.Context != "" {
 					fmt.Fprintf(file, "   └─ Context: %s\n", rule.Context)
 				} else {
@@ -221,12 +221,12 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 	if err := EnsureOutputsDir(); err != nil {
 		return fmt.Errorf("error creating outputs directory: %w", err)
 	}
-	
+
 	// Prepend outputs/ to the file path if not already there
 	if !strings.HasPrefix(outputFile, "outputs/") {
 		outputFile = "outputs/" + outputFile
 	}
-	
+
 	file, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("error creating commands file: %w", err)
@@ -315,12 +315,12 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 	if err := EnsureOutputsDir(); err != nil {
 		return fmt.Errorf("error creating outputs directory: %w", err)
 	}
-	
+
 	// Prepend outputs/ to the file path if not already there
 	if !strings.HasPrefix(outputFile, "outputs/") {
 		outputFile = "outputs/" + outputFile
 	}
-	
+
 	file, err := os.Create(outputFile)
 	if err != nil {
 		return fmt.Errorf("error creating cleanup commands file: %w", err)
@@ -447,22 +447,4 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
 
 	return nil
-}
-
-// getSectionDescription returns a description for each section
-func getSectionDescription(section string) string {
-	switch section {
-	case "target_creation":
-		return "Create target address in optimal scope for multi-DG usage"
-	case "address_groups":
-		return "Replace redundant addresses with target address in address groups"
-	case "security_rules":
-		return "Replace redundant addresses with target address in security rules"
-	case "nat_rules":
-		return "NAT rule updates require manual review due to complexity"
-	case "definitions":
-		return "Remove redundant address object definitions (execute last)"
-	default:
-		return "Configuration update step"
-	}
 }

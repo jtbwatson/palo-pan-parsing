@@ -203,11 +203,11 @@ func PromptAddressGroupCopy(originalAddress string, addressGroups []models.Addre
 }
 
 // PromptRedundantAddressCleanup offers to generate commands for cleaning up redundant addresses
-func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []models.RedundantAddress, 
+func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []models.RedundantAddress,
 	analyzeCleanup func(string) (*models.CleanupAnalysis, error),
 	generateCommands func(*models.CleanupAnalysis) *models.CleanupCommands,
 	writeCleanupCommands func(string, *models.CleanupCommands) error) {
-	
+
 	if len(redundantAddresses) == 0 {
 		return
 	}
@@ -216,7 +216,7 @@ func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []mo
 	PrintSectionHeader("Redundant Address Cleanup Helper")
 	fmt.Printf(ColorWarning("  Found %s redundant address object(s) with the same IP as '%s'\n"),
 		ColorHighlight(utils.FormatNumber(len(redundantAddresses))), targetAddress)
-	
+
 	fmt.Println(ColorInfo("  These redundant addresses can be cleaned up by:"))
 	fmt.Println(ColorInfo("    • Replacing all usage with the target address"))
 	fmt.Println(ColorInfo("    • Removing redundant definitions"))
@@ -232,7 +232,7 @@ func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []mo
 		} else {
 			scope = fmt.Sprintf("device-group %s", scope)
 		}
-		fmt.Printf(ColorListItem("    %d. %s (%s) - %s\n"), 
+		fmt.Printf(ColorListItem("    %d. %s (%s) - %s\n"),
 			i+1, redundant.Name, scope, redundant.IPNetmask)
 	}
 	fmt.Println()
@@ -259,9 +259,9 @@ func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []mo
 	// Show analysis summary
 	PrintSectionHeader("Cleanup Analysis Summary")
 	fmt.Printf(ColorInfo("  Target Address: %s\n"), ColorHighlight(analysis.TargetAddress))
-	
+
 	if analysis.ShouldPromoteToShared {
-		fmt.Printf(ColorSuccess("  Optimization: Will promote to shared scope (used in %s device groups)\n"), 
+		fmt.Printf(ColorSuccess("  Optimization: Will promote to shared scope (used in %s device groups)\n"),
 			ColorHighlight(utils.FormatNumber(analysis.TotalDGsAffected)))
 	} else {
 		if analysis.TargetScope == "shared" {
@@ -271,15 +271,15 @@ func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []mo
 		}
 	}
 
-	fmt.Printf(ColorInfo("  Redundant addresses to clean: %s\n"), 
+	fmt.Printf(ColorInfo("  Redundant addresses to clean: %s\n"),
 		ColorHighlight(utils.FormatNumber(len(analysis.RedundantUsage))))
-	
+
 	totalUsageCount := 0
 	for _, usage := range analysis.RedundantUsage {
 		usageCount := len(usage.AddressGroups) + len(usage.SecurityRules) + len(usage.NATRules) + len(usage.ServiceGroups)
 		totalUsageCount += usageCount
 	}
-	fmt.Printf(ColorInfo("  Total usage instances found: %s\n"), 
+	fmt.Printf(ColorInfo("  Total usage instances found: %s\n"),
 		ColorHighlight(utils.FormatNumber(totalUsageCount)))
 	PrintSectionFooter()
 
@@ -288,9 +288,9 @@ func PromptRedundantAddressCleanup(targetAddress string, redundantAddresses []mo
 	commands := generateCommands(analysis)
 
 	fmt.Println()
-	fmt.Printf(ColorSuccess("  Generated %s cleanup command(s)!\n"), 
+	fmt.Printf(ColorSuccess("  Generated %s cleanup command(s)!\n"),
 		ColorHighlight(utils.FormatNumber(commands.TotalCommands)))
-	
+
 	// Write commands to file
 	outputFile := fmt.Sprintf("%s_cleanup.yml", targetAddress)
 	err = writeCleanupCommands(outputFile, commands)

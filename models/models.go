@@ -53,7 +53,6 @@ type AddressResult struct {
 	RedundantAddresses   []RedundantAddress `json:"redundant_addresses"`
 }
 
-
 // FormattedResults represents the formatted output structure
 type FormattedResults struct {
 	DeviceGroups          []string           `json:"device_groups"`
@@ -109,25 +108,25 @@ type Config struct {
 
 // RedundantAddressUsage represents usage analysis for a redundant address
 type RedundantAddressUsage struct {
-	Name            string                    `json:"name"`
-	IPNetmask       string                    `json:"ip_netmask"`
-	DeviceGroup     string                    `json:"device_group"`
-	UsedInDGs       map[string]bool           `json:"used_in_device_groups"`
-	AddressGroups   []AddressGroup            `json:"address_groups"`
-	SecurityRules   map[string]string         `json:"security_rules"`
-	RuleContexts    map[string]string         `json:"rule_contexts"`
-	NATRules        map[string]bool           `json:"nat_rules"`
-	ServiceGroups   map[string]bool           `json:"service_groups"`
+	Name          string            `json:"name"`
+	IPNetmask     string            `json:"ip_netmask"`
+	DeviceGroup   string            `json:"device_group"`
+	UsedInDGs     map[string]bool   `json:"used_in_device_groups"`
+	AddressGroups []AddressGroup    `json:"address_groups"`
+	SecurityRules map[string]string `json:"security_rules"`
+	RuleContexts  map[string]string `json:"rule_contexts"`
+	NATRules      map[string]bool   `json:"nat_rules"`
+	ServiceGroups map[string]bool   `json:"service_groups"`
 }
 
 // CleanupAnalysis represents the analysis for redundant address cleanup
 type CleanupAnalysis struct {
-	TargetAddress    string                             `json:"target_address"`
-	TargetScope      string                             `json:"target_scope"`
-	TargetDG         string                             `json:"target_device_group,omitempty"`
-	RedundantUsage   map[string]*RedundantAddressUsage  `json:"redundant_usage"`
-	ShouldPromoteToShared bool                          `json:"should_promote_to_shared"`
-	TotalDGsAffected int                                `json:"total_dgs_affected"`
+	TargetAddress         string                            `json:"target_address"`
+	TargetScope           string                            `json:"target_scope"`
+	TargetDG              string                            `json:"target_device_group,omitempty"`
+	RedundantUsage        map[string]*RedundantAddressUsage `json:"redundant_usage"`
+	ShouldPromoteToShared bool                              `json:"should_promote_to_shared"`
+	TotalDGsAffected      int                               `json:"total_dgs_affected"`
 }
 
 // CleanupCommand represents a single cleanup command
