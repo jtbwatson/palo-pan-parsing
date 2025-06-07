@@ -10,30 +10,27 @@ This is a PAN (Palo Alto Networks) Log Parser Tool - a high-performance Go-based
 
 ### Setup and Build
 ```bash
-# Build the Go binary (recommended)
-npm run setup
+# One-step installation (recommended)
+make install
 # or manually: go build -o pan-parser main.go
 
-# Quick build without npm
-npm run build
+# Build only
+make build
 
 # Verify installation and show help
-npm run test
-# or: ./pan-parser -h
+./pan-parser -h
 ```
 
 ### Usage
 ```bash
-# Run in modern TUI mode (recommended - NEW!)
-./pan-parser --tui
-# or via npm: npm run tui
+# Run in modern TUI mode (default - recommended)
+./pan-parser
+# or explicitly: ./pan-parser --tui
+# or via make: make run
 
 # Run the parser in classic interactive mode
-./pan-parser -i
-# or via npm: npm run parser
-
-# Quick interactive run
-npm run run
+./pan-parser --verbose
+# or via make: make verbose
 
 # Command line mode with specific parameters
 ./pan-parser -a <address_name> -l <log_file> -o <output_file>
@@ -69,8 +66,7 @@ npm run run
 - **Utils Package (`utils/`)**: Utility functions and file operations
   - `utils.go`: Formatting, parsing, and system utilities
   - `writer.go`: Structured YAML output generation and file writing
-- **Setup Script (`setup.sh`)**: Bash script that builds the Go binary and verifies Go installation
-- **NPM Integration**: Enhanced package.json with TUI command (`npm run tui`) and existing wrapper commands
+- **Build System**: Makefile-based build system with dependency checking and global installation support
 
 ### Key Processing Flow
 1. **Memory-Optimized File Reading**: Loads entire configuration into memory for faster processing (processor/processor.go:63-203)
@@ -85,7 +81,7 @@ npm run run
 - **Pre-Compiled Regex**: All patterns compiled once at startup (models/models.go:23-37)
 - **Efficient Data Structures**: Uses native Go maps and slices for optimal performance (models/models.go:35-96)
 - **Progress Reporting**: Shows progress every 200K-500K lines for large files (processor/processor.go:120-137)
-- **Minimal Dependencies**: Uses only Go standard library (no external dependencies)
+- **Minimal Dependencies**: Uses only Go standard library for core processing (TUI uses Bubble Tea ecosystem)
 
 ### Data Structure Patterns
 - **Modular Design**: Clean separation of concerns across packages
@@ -103,21 +99,20 @@ npm run run
 - **Build Tools**: Go 1.23+ required (as specified in go.mod)
 
 ### File Structure
-- **`main.go`**: CLI interface and orchestration with TUI/interactive mode routing (~220 lines)
-- **`models/models.go`**: Data structures and type definitions (~102 lines)
-- **`processor/processor.go`**: Core processing engine with silent mode support (~391 lines)
-- **`processor/analysis.go`**: Advanced analysis algorithms (~282 lines)
-- **`processor/cleanup.go`**: Redundant address cleanup logic (~400+ lines)
-- **`tui/tui.go`**: TUI application entry point (~35 lines)
-- **`tui/models.go`**: TUI state management and navigation logic (~560+ lines)
-- **`tui/styles.go`**: Professional color scheme and styling (~85 lines)
-- **`tui/commands.go`**: Background command execution coordination (~195 lines)
-- **`ui/display.go`**: Classic terminal display and formatting (~75 lines)
-- **`ui/interactive.go`**: Classic interactive mode implementation (~203 lines)
-- **`utils/utils.go`**: Utility functions (~88 lines)
-- **`utils/writer.go`**: Output generation and file writing (~288 lines)
-- **`setup.sh`**: Bash script for building and optionally running the parser
-- **`package.json`**: NPM wrapper scripts including TUI command
+- **`main.go`**: CLI interface and orchestration with TUI/interactive mode routing (229 lines)
+- **`models/models.go`**: Data structures and type definitions (140 lines)
+- **`processor/processor.go`**: Core processing engine with silent mode support (406 lines)
+- **`processor/analysis.go`**: Advanced analysis algorithms (281 lines)
+- **`processor/cleanup.go`**: Redundant address cleanup logic (427 lines)
+- **`tui/tui.go`**: TUI application entry point (32 lines)
+- **`tui/models.go`**: TUI state management and navigation logic (777 lines)
+- **`tui/styles.go`**: Professional color scheme and styling (95 lines)
+- **`tui/commands.go`**: Background command execution coordination (250 lines)
+- **`ui/display.go`**: Classic terminal display and formatting (74 lines)
+- **`ui/interactive.go`**: Classic interactive mode implementation (305 lines)
+- **`utils/utils.go`**: Utility functions (87 lines)
+- **`utils/writer.go`**: Output generation and file writing (467 lines)
+- **`Makefile`**: Build system with installation and dependency management
 - **`go.mod`**: Go module definition with Bubble Tea dependencies
 - **`outputs/`**: Auto-created directory for all result files (YAML format)
 
@@ -144,14 +139,17 @@ The modern TUI mode provides a comprehensive graphical interface within the term
 - **Real-time Feedback**: Progress indicators, status messages, and operation completion notifications
 - **Responsive Design**: Clean layout that adapts to terminal size with proper text wrapping
 
-### Workflow States
+### Workflow States (9-State Machine)
 1. **Main Menu**: Choose analysis or exit with visual highlighting
 2. **File Selection**: Enter configuration file path with input validation
 3. **Address Input**: Single or multiple address entry with comma separation support
 4. **Processing Screen**: Silent background analysis with progress indication
 5. **Results Summary**: Analysis completion confirmation with file generation status
 6. **Additional Options**: Multi-select menu for post-analysis operations
-7. **Operation Status**: Feedback screen for command execution results
+7. **Source Address Selection**: Choose source address for multi-address group operations
+8. **New Address Input**: Enter custom names for new address objects
+9. **Operation Status**: Feedback screen for command execution results
+10. **Error State**: Comprehensive error handling and user feedback
 
 ### Technical Implementation
 - **State Machine**: Clean state management with proper transitions and error handling
@@ -161,9 +159,9 @@ The modern TUI mode provides a comprehensive graphical interface within the term
 
 ## Development Notes
 
-- The tool supports three modes: modern TUI, classic interactive, and command-line
-- **TUI mode (recommended)**: Modern interface with multi-select operations and visual feedback
-- **Interactive mode**: Classic guided command-line experience with colored terminal output
+- The tool supports three modes: modern TUI (default), classic interactive, and command-line
+- **TUI mode (default)**: Modern interface with 9-state navigation, multi-select operations, and visual feedback
+- **Interactive mode (`--verbose`)**: Classic guided command-line experience with colored terminal output
 - **Command-line mode**: Direct execution for automation and scripting
 - All output files are automatically saved to `outputs/` directory with YAML-like structured format
 - The parser handles quoted rule names and complex PAN configuration syntax

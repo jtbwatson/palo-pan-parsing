@@ -52,13 +52,13 @@ This tool parses PAN configuration exports/logs to help network administrators u
 - **Memory-Optimized Processing**: Loads entire configuration into memory for faster analysis
 - **Pre-Compiled Regex**: All patterns compiled once at startup for maximum performance
 - **Progress Reporting**: Real-time progress updates for large files (200K-500K line intervals)
-- **Zero Dependencies**: Uses only Go standard library - no external dependencies required
+- **Minimal Dependencies**: Core processing uses only Go standard library, TUI uses Bubble Tea ecosystem
 - **Efficient Data Structures**: Native Go maps and slices for optimal performance
 
 ## Installation
 
 ### Prerequisites
-- Go 1.23 or later (as specified in go.mod)
+- Go 1.23.0 or later (toolchain go1.24.4 as specified in go.mod)
 
 ### Setup
 ```bash
@@ -85,11 +85,12 @@ pan-parser
 # or: make run
 ```
 By default, the tool runs in **Terminal User Interface (TUI)** mode, providing a modern, intuitive experience with:
-- **Clean visual interface** with professional blue/purple color scheme
-- **Multi-select operations** - Select and execute multiple post-analysis operations
-- **Guided workflow** - File selection → Address input → Analysis → Operations menu
-- **Real-time feedback** - Progress indicators and status messages
-- **Silent processing** - No output leakage outside the TUI window
+- **Professional styling** - Clean blue/purple color scheme with consistent spacing
+- **9-state navigation** - Comprehensive state machine with smart navigation
+- **Multi-select operations** - Checkbox-based selection for post-analysis operations
+- **Silent background processing** - No output interference with the TUI display
+- **Real-time feedback** - Progress indicators, status messages, and operation completion notifications
+- **Advanced workflows** - Support for multi-address operations and custom naming
 
 ### Verbose Mode (Classic Interactive)
 ```bash
@@ -121,10 +122,12 @@ pan-parser -h
 
 **Makefile commands:**
 ```bash
-make install     # Install globally (includes all setup)
-make build       # Build only (no install)
-make run         # Build and run locally (TUI mode)
-make verbose     # Build and run locally (verbose mode)
+make install     # One-step install: check deps, build, and install globally
+make build       # Build the application only
+make uninstall   # Remove from system PATH
+make clean       # Remove build artifacts
+make run         # Build and run (default TUI mode)
+make verbose     # Build and run verbose interactive mode
 make help        # Show available targets
 ```
 
@@ -164,23 +167,30 @@ The modern Terminal User Interface provides an intuitive workflow with multiple 
 - **Esc** - Go back to previous screen
 - **Ctrl+C / q** - Quit application
 
-### 📱 **Screen Flow**
+### 📱 **Screen Flow (9-State Machine)**
 1. **Main Menu** - Choose "Analyze Configuration File" or "Exit"
-2. **File Selection** - Enter path to PAN configuration file (with auto-completion)
+2. **File Selection** - Enter path to PAN configuration file
 3. **Address Input** - Enter single or multiple address names (comma-separated)
 4. **Processing** - Real-time progress with silent background processing
-5. **Additional Options** - Multi-select operations menu:
+5. **Results Summary** - Analysis completion confirmation with file generation status
+6. **Additional Options** - Multi-select operations menu:
    - ☑️ Generate Address Group Commands
    - ☑️ Generate Cleanup Commands
    - Execute Selected Operations
    - Return to Main Menu
+7. **Source Address Selection** - Choose source address for multi-address operations
+8. **New Address Input** - Enter custom names for new address objects
+9. **Operation Status** - Feedback screen for command execution results
+10. **Error State** - Comprehensive error handling and user feedback
 
 ### ✨ **Key Benefits**
-- **Multi-Select Operations** - Run multiple post-analysis operations without restarting
-- **Perfect Alignment** - Clean, professional interface with consistent spacing
-- **Smart Navigation** - Automatically skips separator lines
-- **Silent Processing** - No output interference with the TUI display
-- **Real-time Feedback** - Status messages and operation completion notifications
+- **Comprehensive State Management** - 9-state machine with proper error handling
+- **Multi-Select Operations** - Checkbox-based selection for multiple post-analysis operations
+- **Professional Design** - Clean, consistent blue/purple interface styling
+- **Smart Navigation** - Automatically skips separator lines and invalid selections
+- **Silent Background Processing** - Maintains clean TUI display during operations
+- **Advanced Workflows** - Support for multi-address operations and custom naming
+- **Real-time Feedback** - Progress indicators and operation status notifications
 
 ## Output Format
 
@@ -289,48 +299,49 @@ Expected performance improvements over traditional line-by-line parsing:
 
 ### Package Architecture
 ```
-├── main.go                 # CLI interface and orchestration
+├── main.go                 # CLI interface and orchestration (229 lines)
 ├── models/
-│   └── models.go          # Data structures and type definitions
+│   └── models.go          # Data structures and type definitions (140 lines)
 ├── processor/
-│   ├── processor.go       # Core processing engine
-│   ├── analysis.go        # Advanced analysis algorithms
-│   └── cleanup.go         # Redundant address cleanup logic
-├── tui/                   # Modern Terminal User Interface (NEW!)
-│   ├── tui.go            # TUI application entry point
-│   ├── models.go         # TUI state management and logic
-│   ├── styles.go         # Professional color scheme and styling
-│   └── commands.go       # Background command execution
+│   ├── processor.go       # Core processing engine (406 lines)
+│   ├── analysis.go        # Advanced analysis algorithms (281 lines)
+│   └── cleanup.go         # Redundant address cleanup logic (427 lines)
+├── tui/                   # Modern Terminal User Interface
+│   ├── tui.go            # TUI application entry point (32 lines)
+│   ├── models.go         # TUI state management and logic (777 lines)
+│   ├── styles.go         # Professional color scheme and styling (95 lines)
+│   └── commands.go       # Background command execution (250 lines)
 ├── ui/
-│   ├── display.go         # Classic terminal display and formatting
-│   └── interactive.go     # Classic interactive mode implementation
+│   ├── display.go         # Classic terminal display and formatting (74 lines)
+│   └── interactive.go     # Classic interactive mode implementation (305 lines)
 ├── utils/
-│   ├── utils.go          # Utility functions
-│   └── writer.go         # Output generation and file writing
-├── setup.sh              # Build script
-├── package.json          # NPM wrapper commands
-├── go.mod               # Go module definition with Bubble Tea
+│   ├── utils.go          # Utility functions (87 lines)
+│   └── writer.go         # Output generation and file writing (467 lines)
+├── Makefile              # Build system with installation and dependency management
+├── go.mod               # Go module definition with Bubble Tea dependencies
 └── outputs/             # Generated analysis results
 ```
 
 ### Component Responsibilities
-- **Main**: Command-line interface, flag parsing, and orchestration
-- **Models**: Type-safe data structures, regex patterns, result models
-- **Processor**: Core parsing engine, pattern matching, relationship analysis, silent mode support
-- **TUI**: Modern Terminal User Interface with Bubble Tea framework, multi-select operations, professional styling
-- **UI**: Classic user interface layer with color formatting and interactive mode
-- **Utils**: Reusable utilities for formatting, parsing, and file operations
+- **Main**: Command-line interface, flag parsing, and orchestration (229 lines)
+- **Models**: Type-safe data structures, regex patterns, result models (140 lines) 
+- **Processor**: Core parsing engine, pattern matching, relationship analysis, silent mode support (1,114 lines total)
+- **TUI**: Modern Terminal User Interface with 9-state machine, multi-select operations, professional styling (1,154 lines total)
+- **UI**: Classic user interface layer with color formatting and interactive mode (379 lines total)
+- **Utils**: Reusable utilities for formatting, parsing, and file operations (554 lines total)
+
+**Total Codebase**: 3,570 lines across all packages
 
 ## Build Requirements
 
-- **Go 1.23+**: Required for building the application (as specified in go.mod)
-- **Bubble Tea Framework**: Modern TUI framework for the new interface
+- **Go 1.23.0+**: Required for building the application (toolchain go1.24.4)
+- **Bubble Tea Framework**: Modern TUI framework for the interface
 - **Lipgloss**: Styling library for professional terminal UI appearance
 
 ### Dependencies
-- **Runtime**: Minimal external dependencies - primarily Bubble Tea ecosystem
-- **Core Logic**: Uses only Go standard library for processing
-- **TUI**: Bubble Tea, Lipgloss for modern terminal interface
+- **Core Processing**: Uses only Go standard library for analysis logic
+- **TUI Framework**: Bubble Tea v1.3.5 and Lipgloss v1.1.0 for modern terminal interface
+- **Transitive Dependencies**: 17 additional dependencies for TUI functionality (automatically managed)
 
 The tool is self-contained after building with all dependencies statically linked.
 

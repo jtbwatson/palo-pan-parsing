@@ -2,6 +2,12 @@ package models
 
 import "regexp"
 
+// Application version information
+const (
+	Version = "v2.1 (Go Edition)"
+	AppName = "PAN Log Parser"
+)
+
 // Patterns holds all compiled regex patterns for parsing
 type Patterns struct {
 	SecurityRuleQuoted    *regexp.Regexp

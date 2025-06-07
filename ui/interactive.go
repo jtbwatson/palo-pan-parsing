@@ -133,7 +133,7 @@ func RunInteractiveMode(panProcessor *processor.PANLogProcessor, processAddress 
 	PrintSectionHeader("Analysis Complete")
 	fmt.Println(ColorSuccess("  Analysis session completed successfully!"))
 	fmt.Println(ColorInfo("  Your PAN configuration analysis is ready for review"))
-	fmt.Println(ColorDimText("  Tool: PAN Log Parser v2.0 (Go Edition) | Advanced Configuration Analysis"))
+	fmt.Println(ColorDimText(fmt.Sprintf("  Tool: %s %s | Advanced Configuration Analysis", models.AppName, models.Version)))
 	PrintSectionFooter()
 	fmt.Println(ColorTitle("\nThank you for using the PAN Log Parser Tool!"))
 }
