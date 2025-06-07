@@ -5,7 +5,7 @@ import "github.com/charmbracelet/lipgloss"
 var (
 	// Colors - Professional blue/purple theme
 	primaryColor   = lipgloss.Color("#7C3AED")  // Purple
-	secondaryColor = lipgloss.Color("#3B82F6")  // Blue
+	secondaryColor = lipgloss.Color("#3B82F6")  // Blue 
 	accentColor    = lipgloss.Color("#06B6D4")  // Cyan
 	successColor   = lipgloss.Color("#10B981")  // Green
 	warningColor   = lipgloss.Color("#F59E0B")  // Amber
@@ -37,13 +37,11 @@ var (
 		PaddingBottom(1)
 	
 	// Menu styles
-	choiceStyle = lipgloss.NewStyle().
-		PaddingLeft(2)
+	choiceStyle = lipgloss.NewStyle()
 	
 	selectedStyle = lipgloss.NewStyle().
 		Foreground(primaryColor).
-		Bold(true).
-		PaddingLeft(2)
+		Bold(true)
 	
 	// Input styles - clean, no messy borders
 	inputStyle = lipgloss.NewStyle().
@@ -87,8 +85,7 @@ var (
 	// Help text
 	helpStyle = lipgloss.NewStyle().
 		Foreground(mutedColor).
-		Italic(true).
-		PaddingTop(1)
+		Italic(true)
 	
 	// Progress styles
 	progressBarStyle = lipgloss.NewStyle().

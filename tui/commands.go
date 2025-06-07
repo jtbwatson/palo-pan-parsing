@@ -3,9 +3,10 @@ package tui
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"palo-pan-parsing/processor"
 	"palo-pan-parsing/utils"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 // ProcessResult represents the result of file processing

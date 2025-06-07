@@ -1,4 +1,4 @@
-# Just a set of nonsense set commands for Palo to test parsing
+// Just a set of nonsense set commands for Palo to test parsing
 set device-group linux-servers pre-rulebase security rules allow-ssh destination [ linux1 linux2 ]
 set device-group windows-servers address-group windows-servers static [ windows1 windows2 ]
 set device-group all-servers pre-rulebase security rules block-telnet destination [ linux-hosts windows-hosts ]
