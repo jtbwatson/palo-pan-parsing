@@ -3,9 +3,11 @@ package tui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"palo-pan-parsing/processor"
 
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -46,7 +48,9 @@ type Model struct {
 	pendingCommands []tea.Cmd
 
 	// Processing
-	progress float64
+	progress    float64
+	progressBar progress.Model
+	processingDots int
 
 	// Results
 	results           string
@@ -68,11 +72,13 @@ type Model struct {
 
 // NewModel creates a new TUI model
 func NewModel() Model {
+	prog := progress.New(progress.WithDefaultGradient())
 	return Model{
 		state:                StateMenu,
 		selected:             make(map[int]struct{}),
 		choices:              []string{"Analyze Configuration File", "Exit"},
 		postAnalysisSelected: make(map[int]bool),
+		progressBar:          prog,
 	}
 }
 
@@ -112,6 +118,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case ProcessResult:
 		return m.handleProcessResult(msg)
+	case ProcessProgressMsg:
+		m.progress = msg.Progress
+		return m, nil
+	case TickMsg:
+		if m.state == StateProcessing {
+			m.processingDots = (m.processingDots + 1) % 4
+			// Also update progress from global state
+			m.progress = getProgress()
+			return m, tickCmd()
+		}
+		return m, nil
+	case ProgressPollMsg:
+		if m.state == StateProcessing {
+			// Update progress from global state
+			m.progress = getProgress()
+			
+			// Check if processing is complete
+			done, result := getProcessingStatus()
+			if done && result != nil {
+				return m.handleProcessResult(*result)
+			}
+			
+			// Continue polling
+			return m, checkProcessingCompleteCmd()
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -276,7 +308,11 @@ func (m Model) updateAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if len(m.addresses) > 0 {
 				// Start processing
 				m.state = StateProcessing
-				return m, processFileCmd(m.logFile, m.addresses)
+				m.processingDots = 0
+				return m, tea.Batch(
+					processFileCmd(m.logFile, m.addresses),
+					tickCmd(),
+				)
 			}
 		}
 	case "backspace":
@@ -328,12 +364,20 @@ func (m Model) viewProcessing() string {
 	s.WriteString("Analyzing: " + highlightStyle.Render(strings.Join(m.addresses, ", ")) + "\n")
 	s.WriteString("File: " + highlightStyle.Render(m.logFile) + "\n\n")
 
-	// Simple progress indicator
-	progress := "Working"
-	for range int(m.progress*3) % 4 {
-		progress += "."
+	// Animated progress indicator
+	dots := strings.Repeat(".", m.processingDots)
+	spaces := strings.Repeat(" ", 3-m.processingDots)
+	progressText := "Working" + dots + spaces
+	s.WriteString(progressText + "\n\n")
+
+	// Progress bar (if we have progress)
+	if m.progress > 0 {
+		s.WriteString(m.progressBar.ViewAs(m.progress) + "\n")
+		percentage := int(m.progress * 100)
+		s.WriteString(fmt.Sprintf("Progress: %d%%\n\n", percentage))
+	} else {
+		s.WriteString("Initializing analysis...\n\n")
 	}
-	s.WriteString(progress + "\n\n")
 
 	s.WriteString(helpStyle.Render("Please wait while we analyze your configuration..."))
 
@@ -782,4 +826,21 @@ func (m Model) viewSelectSourceAddress() string {
 	s.WriteString("\n" + helpStyle.Render("↑/↓ to navigate, Enter to select, Esc to go back, Ctrl+C to quit"))
 
 	return boxStyle.Render(s.String())
+}
+
+// TickMsg is sent periodically for animations
+type TickMsg time.Time
+
+// tickCmd returns a command that sends periodic tick messages
+func tickCmd() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+		return TickMsg(t)
+	})
+}
+
+// checkProcessingCompleteCmd checks if processing is complete
+func checkProcessingCompleteCmd() tea.Cmd {
+	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
+		return ProgressPollMsg{}
+	})
 }

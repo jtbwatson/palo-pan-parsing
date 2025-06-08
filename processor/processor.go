@@ -15,9 +15,10 @@ import (
 
 // PANLogProcessor is the main processor
 type PANLogProcessor struct {
-	Results  map[string]*models.AddressResult
-	Patterns *models.Patterns
-	Silent   bool // If true, suppress all output
+	Results          map[string]*models.AddressResult
+	Patterns         *models.Patterns
+	Silent           bool // If true, suppress all output
+	ProgressCallback func(float64, string) // Callback for progress updates
 }
 
 // NewPatterns creates and compiles all regex patterns
@@ -133,9 +134,9 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	// This ensures addresses like "someserver-rebuild" match when searching for "someserver"
 
 	// Process all lines in memory with optimized batch processing
-	progressInterval := 250000 // Less frequent progress reporting for better performance
+	progressInterval := 20000 // Very frequent progress reporting for great UX
 	if totalLines > 5000000 {
-		progressInterval = 500000
+		progressInterval = 40000
 	}
 	lastProgress := 0
 
@@ -146,9 +147,17 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 	for lineNum, line := range allLines {
 		// Show progress less frequently for better performance
 		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
-			percentage := float64(lineNum) / float64(totalLines) * 100
-			p.printf("    Processing line %s/%s (%.0f%%)\n",
+			progress := float64(lineNum) / float64(totalLines)
+			percentage := progress * 100
+			message := fmt.Sprintf("Processing line %s/%s (%.0f%%)",
 				utils.FormatNumber(lineNum), utils.FormatNumber(totalLines), percentage)
+			
+			// Call progress callback if available
+			if p.ProgressCallback != nil {
+				p.ProgressCallback(progress, message)
+			} else {
+				p.printf("    %s\n", message)
+			}
 			lastProgress = lineNum
 		}
 

@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"sync"
 
 	"palo-pan-parsing/processor"
 	"palo-pan-parsing/utils"
@@ -28,64 +29,132 @@ type ProcessProgressMsg struct {
 	Message  string
 }
 
-// processFileCmd creates a command to process the configuration file
+// ProgressPollMsg signals to check for progress updates
+type ProgressPollMsg struct{}
+
+// Global progress state
+var (
+	progressMutex   sync.RWMutex
+	currentProgress float64
+	processingDone  bool
+	processingResult *ProcessResult
+)
+
+// updateProgress safely updates the global progress
+func updateProgress(progress float64) {
+	progressMutex.Lock()
+	currentProgress = progress
+	progressMutex.Unlock()
+}
+
+// getProgress safely gets the current progress
+func getProgress() float64 {
+	progressMutex.RLock()
+	progress := currentProgress
+	progressMutex.RUnlock()
+	return progress
+}
+
+// setProcessingComplete sets the processing as complete with result
+func setProcessingComplete(result ProcessResult) {
+	progressMutex.Lock()
+	processingDone = true
+	processingResult = &result
+	progressMutex.Unlock()
+}
+
+// getProcessingStatus gets the processing status and result
+func getProcessingStatus() (bool, *ProcessResult) {
+	progressMutex.RLock()
+	done := processingDone
+	result := processingResult
+	progressMutex.RUnlock()
+	return done, result
+}
+
+// resetProcessingState resets the global processing state
+func resetProcessingState() {
+	progressMutex.Lock()
+	currentProgress = 0.0
+	processingDone = false
+	processingResult = nil
+	progressMutex.Unlock()
+}
+
+// processFileCmd creates a command to process the configuration file with real-time progress
 func processFileCmd(logFile string, addresses []string) tea.Cmd {
-	return tea.Cmd(func() tea.Msg {
-		// Create processor in silent mode for TUI
-		panProcessor := processor.NewPANLogProcessor()
-		panProcessor.Silent = true
+	return func() tea.Msg {
+		// Reset progress state
+		resetProcessingState()
+		
+		// Start processing in a goroutine
+		go func() {
+			// Create processor in silent mode for TUI
+			panProcessor := processor.NewPANLogProcessor()
+			panProcessor.Silent = true
 
-		// Process file silently (no stdout output)
-		if err := panProcessor.ProcessFileSinglePass(logFile, addresses); err != nil {
-			return ProcessResult{
-				Success: false,
-				Error:   err,
-			}
-		}
-
-		var hasAddressGroups, hasRedundantAddrs bool
-		var addressesWithGroups []string
-
-		// Generate results for each address
-		for _, address := range addresses {
-			result, exists := panProcessor.Results[address]
-			if !exists || len(result.MatchingLines) == 0 {
-				continue
+			// Set up progress callback to update global state
+			panProcessor.ProgressCallback = func(progress float64, message string) {
+				updateProgress(progress)
 			}
 
-			// Format results
-			itemsDict := panProcessor.FormatResults(address)
-
-			// Check for address groups and redundant addresses
-			if len(itemsDict.AddressGroups) > 0 {
-				hasAddressGroups = true
-				addressesWithGroups = append(addressesWithGroups, address)
-			}
-			if len(itemsDict.RedundantAddresses) > 0 {
-				hasRedundantAddrs = true
-			}
-
-			// Generate output file
-			outputFile := fmt.Sprintf("%s_results.yml", address)
-			err := utils.WriteResults(outputFile, address, result.MatchingLines, itemsDict)
-			if err != nil {
-				return ProcessResult{
+			// Process file silently (no stdout output)
+			if err := panProcessor.ProcessFileSinglePass(logFile, addresses); err != nil {
+				setProcessingComplete(ProcessResult{
 					Success: false,
-					Error:   fmt.Errorf("error writing results for %s: %w", address, err),
+					Error:   err,
+				})
+				return
+			}
+
+			var hasAddressGroups, hasRedundantAddrs bool
+			var addressesWithGroups []string
+
+			// Generate results for each address
+			for _, address := range addresses {
+				result, exists := panProcessor.Results[address]
+				if !exists || len(result.MatchingLines) == 0 {
+					continue
+				}
+
+				// Format results
+				itemsDict := panProcessor.FormatResults(address)
+
+				// Check for address groups and redundant addresses
+				if len(itemsDict.AddressGroups) > 0 {
+					hasAddressGroups = true
+					addressesWithGroups = append(addressesWithGroups, address)
+				}
+				if len(itemsDict.RedundantAddresses) > 0 {
+					hasRedundantAddrs = true
+				}
+
+				// Generate output file
+				outputFile := fmt.Sprintf("%s_results.yml", address)
+				err := utils.WriteResults(outputFile, address, result.MatchingLines, itemsDict)
+				if err != nil {
+					setProcessingComplete(ProcessResult{
+						Success: false,
+						Error:   fmt.Errorf("error writing results for %s: %w", address, err),
+					})
+					return
 				}
 			}
-		}
 
-		return ProcessResult{
-			Success:             true,
-			Addresses:           addresses,
-			AddressesWithGroups: addressesWithGroups,
-			HasAddressGroups:    hasAddressGroups,
-			HasRedundantAddrs:   hasRedundantAddrs,
-			Processor:           panProcessor,
-			ConfigFile:          logFile,
-		}
-	})
+			setProcessingComplete(ProcessResult{
+				Success:             true,
+				Addresses:           addresses,
+				AddressesWithGroups: addressesWithGroups,
+				HasAddressGroups:    hasAddressGroups,
+				HasRedundantAddrs:   hasRedundantAddrs,
+				Processor:           panProcessor,
+				ConfigFile:          logFile,
+			})
+		}()
+		
+		// Start polling for progress updates
+		return ProgressPollMsg{}
+	}
 }
 
 // Handle process result in the model
