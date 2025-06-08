@@ -1,6 +1,6 @@
 # PAN Log Parser Makefile
 
-.PHONY: build install uninstall clean help run verbose vendor
+.PHONY: build install uninstall clean help run verbose vendor update-deps
 
 # Default target
 all: build
@@ -84,15 +84,24 @@ vendor:
 	@go mod vendor
 	@echo "✅ Vendored dependencies updated"
 
+# Update all dependencies to latest versions and vendor them
+update-deps:
+	@echo "🔄 Updating all dependencies to latest versions..."
+	@go get -u ./...
+	@go mod tidy
+	@go mod vendor
+	@echo "✅ All dependencies updated and vendored"
+
 # Show help
 help:
 	@echo "PAN Log Parser Makefile"
 	@echo ""
 	@echo "Available targets:"
-	@echo "  install   - One-step install: check deps, build, and install globally"
-	@echo "  build     - Build the application only (uses vendored dependencies)"
-	@echo "  vendor    - Update vendored dependencies (run when dependencies change)"
-	@echo "  uninstall - Remove from system PATH"
+	@echo "  install     - One-step install: check deps, build, and install globally"
+	@echo "  build       - Build the application only (uses vendored dependencies)"
+	@echo "  vendor      - Update vendored dependencies (run when dependencies change)"
+	@echo "  update-deps - Update all dependencies to latest versions and vendor them"
+	@echo "  uninstall   - Remove from system PATH"
 	@echo "  clean     - Remove build artifacts"
 	@echo "  run       - Build and run (default TUI mode)"
 	@echo "  verbose   - Build and run verbose interactive mode"
