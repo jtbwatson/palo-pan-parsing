@@ -1,15 +1,15 @@
 # PAN Log Parser Makefile
 
-.PHONY: build install uninstall clean help run verbose
+.PHONY: build install uninstall clean help run verbose vendor
 
 # Default target
 all: build
 
 
-# Build the application only (no dependency check)
+# Build the application only (uses vendored dependencies)
 build:
 	@echo "🔨 Building PAN parser..."
-	@go build -o pan-parser main.go
+	@go build -mod=vendor -o pan-parser main.go
 	@chmod +x pan-parser
 	@echo "✅ Build complete: ./pan-parser"
 
@@ -23,10 +23,9 @@ install:
 		exit 1; \
 	fi
 	@echo "✅ Found Go: $$(go version)"
-	@echo "📦 Installing dependencies..."
-	@go mod tidy
+	@echo "📦 Using vendored dependencies..."
 	@echo "🔨 Building application..."
-	@go build -o pan-parser main.go
+	@go build -mod=vendor -o pan-parser main.go
 	@chmod +x pan-parser
 	@echo "🔧 Installing globally..."
 	@if [ -w "/usr/local/bin" ]; then \
@@ -78,13 +77,21 @@ run: build
 verbose: build
 	@./pan-parser --verbose
 
+# Update vendored dependencies (run when dependencies change)
+vendor:
+	@echo "📦 Updating vendored dependencies..."
+	@go mod tidy
+	@go mod vendor
+	@echo "✅ Vendored dependencies updated"
+
 # Show help
 help:
 	@echo "PAN Log Parser Makefile"
 	@echo ""
 	@echo "Available targets:"
 	@echo "  install   - One-step install: check deps, build, and install globally"
-	@echo "  build     - Build the application only"
+	@echo "  build     - Build the application only (uses vendored dependencies)"
+	@echo "  vendor    - Update vendored dependencies (run when dependencies change)"
 	@echo "  uninstall - Remove from system PATH"
 	@echo "  clean     - Remove build artifacts"
 	@echo "  run       - Build and run (default TUI mode)"

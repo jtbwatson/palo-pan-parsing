@@ -4,6 +4,10 @@ go 1.23.0
 
 toolchain go1.24.4
 
+// Security Note: All dependencies are vendored in ./vendor/ directory
+// Build with: go build -mod=vendor
+// This ensures no external network calls during build
+
 require (
 	github.com/charmbracelet/bubbletea v1.3.5
 	github.com/charmbracelet/lipgloss v1.1.0
