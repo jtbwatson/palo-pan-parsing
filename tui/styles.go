@@ -7,8 +7,8 @@ var (
 	primaryColor   = lipgloss.Color("#347aeb") // Blue
 	secondaryColor = lipgloss.Color("#636363") // Gray
 	// accentColor    = lipgloss.Color("#06B6D4")  // Cyan (unused, kept for future use)
-	successColor = lipgloss.Color("#1fb009") // Green
-	warningColor = lipgloss.Color("#b0ad09") // Yellow
+	successColor = lipgloss.Color("#69d194") // Light Green
+	warningColor = lipgloss.Color("#F5E6A8") // Pale Yellow
 	errorColor   = lipgloss.Color("#f54242") // Red
 	mutedColor   = lipgloss.Color("#636363") // Gray
 	textColor    = lipgloss.Color("#FFFDF5") // White
@@ -20,7 +20,7 @@ var (
 	//	Border(lipgloss.RoundedBorder()).
 	//	BorderForeground(secondaryColor) // unused, kept for future use
 
-	// Box container - cleaner style
+	// Box container - cleaner style (will be dynamically sized)
 	boxStyle = lipgloss.NewStyle().
 			Padding(2, 3).
 			Border(lipgloss.RoundedBorder()).
@@ -92,6 +92,29 @@ var (
 	helpStyle = lipgloss.NewStyle().
 			Foreground(mutedColor).
 			Italic(true)
+
+	// Session summary styles
+	sessionActionStyle = lipgloss.NewStyle().
+				Foreground(primaryColor).
+				Italic(true)
+
+	sessionStatusStyle = lipgloss.NewStyle().
+				Foreground(textColor)
+
+	sessionSuccessValueStyle = lipgloss.NewStyle().
+					Foreground(successColor).
+					Bold(true)
+
+	sessionWarningValueStyle = lipgloss.NewStyle().
+					Foreground(warningColor).
+					Bold(true)
+
+	sessionErrorValueStyle = lipgloss.NewStyle().
+				Foreground(errorColor).
+				Bold(true)
+
+	sessionNeutralValueStyle = lipgloss.NewStyle().
+					Foreground(textColor)
 
 	// Progress styles
 	// progressBarStyle = lipgloss.NewStyle().

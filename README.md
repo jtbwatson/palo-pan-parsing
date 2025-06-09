@@ -78,6 +78,14 @@ set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
 - **Professional styling** with clean color scheme
 - **Silent background processing** maintains clean display
 - **Real-time feedback** with progress indicators
+- **Enhanced session summary** with intelligent color-coding and visual hierarchy
+
+### Session Summary Display
+- **Color-coded status**: Yellow for input files/targets, green for success metrics, red for errors
+- **Smart formatting**: Action descriptions in blue italic, status values intelligently colored
+- **Count-based display**: Clean redundant address counts instead of long lists
+- **Structured hierarchy**: Indented sub-items and formatted address mappings
+- **Scrollable history**: Full session tracking with pagination support
 
 ## Output Format
 

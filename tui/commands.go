@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 
 	"palo-pan-parsing/processor"
@@ -21,6 +22,12 @@ type ProcessResult struct {
 	Processor           *processor.PANLogProcessor
 	ConfigFile          string
 	OperationComplete   bool // Flag to indicate operation completed, stay in post-analysis
+	
+	// Operation summary details
+	OperationType     string            // e.g., "Address Group Commands", "Cleanup Commands"
+	OperationSummary  string            // Detailed description of what was done
+	FilesGenerated    []string          // List of output files created
+	AddressMappings   map[string]string // Source -> Target address mappings (for address group operations)
 }
 
 // ProcessProgressMsg represents progress updates during processing
@@ -162,8 +169,55 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 	if result.Success {
 		// If this is just an operation completion, return to post-analysis
 		if result.OperationComplete {
-			// Operation completed successfully, return to post-analysis menu
+			// Store operation details for the status display (replace for each operation)
 			m.operationMessage = "Operation completed successfully!"
+			m.lastOperationType = result.OperationType
+			m.lastOperationSummary = result.OperationSummary
+			m.lastFilesGenerated = result.FilesGenerated
+			m.lastAddressMappings = result.AddressMappings
+			m.lastAddresses = result.Addresses
+			m.lastConfigFile = result.ConfigFile
+			
+			// ALWAYS add to session summary (this should persist across operations)
+			m.addFormattedAction(result.OperationType + " Complete")
+			
+			// Handle different operation types in session summary
+			if result.OperationType == "Cleanup Commands" {
+				// Extract cleanup-specific information from summary
+				if strings.Contains(result.OperationSummary, "Target Address:") {
+					lines := strings.Split(result.OperationSummary, "\n")
+					for _, line := range lines {
+						line = strings.TrimSpace(line)
+						if strings.HasPrefix(line, "Target Address:") {
+							m.addFormattedLine(line, true)
+						} else if strings.HasPrefix(line, "Redundant Addresses:") {
+							m.addFormattedLine(line, true)
+						} else if strings.Contains(line, "cleanup commands") {
+							m.addFormattedLine(line, true)
+						}
+					}
+				}
+			} else {
+				// Handle address group commands and other operations
+				if len(result.AddressMappings) > 0 {
+					for source, target := range result.AddressMappings {
+						m.addFormattedMapping(source, target)
+					}
+				}
+			}
+			
+			if len(result.FilesGenerated) > 0 {
+				m.addFormattedStatusIndented("Files Generated", fmt.Sprintf("%d", len(result.FilesGenerated)))
+			}
+			
+			// Check if there are pending commands to execute
+			if len(m.pendingCommands) > 0 {
+				// Execute next pending command
+				nextCmd := m.pendingCommands[0]
+				m.pendingCommands = m.pendingCommands[1:] // Remove the command we're about to execute
+				return m, nextCmd
+			}
+			
 			m.state = StateOperationStatus
 			return m, nil
 		}
@@ -172,6 +226,28 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		m.hasAddressGroups = result.HasAddressGroups
 		m.hasRedundantAddrs = result.HasRedundantAddrs
 		m.addressesWithGroups = result.AddressesWithGroups
+		
+		// Add to output summary
+		m.addFormattedAction("Analysis Complete")
+		m.addFormattedStatus("Addresses", strings.Join(result.Addresses, ", "))
+		
+		// Count total matches
+		totalMatches := 0
+		if result.Processor != nil {
+			for _, address := range result.Addresses {
+				if res, exists := result.Processor.Results[address]; exists {
+					totalMatches += len(res.MatchingLines)
+				}
+			}
+		}
+		m.addFormattedStatus("Total References", fmt.Sprintf("%d", totalMatches))
+		
+		if result.HasAddressGroups {
+			m.addFormattedStatus("Address Groups", "Found")
+		}
+		if result.HasRedundantAddrs {
+			m.addFormattedStatus("Redundant Addresses", "Found")
+		}
 
 		// Set up post-analysis choices with separators for execution
 		m.postAnalysisChoices = []string{}
@@ -183,6 +259,7 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		}
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "---") // Separator
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "Execute Selected Operations")
+		m.postAnalysisChoices = append(m.postAnalysisChoices, "No Additional Options")
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "Return to Main Menu")
 
 		// Reset selections and cursor
@@ -223,7 +300,7 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 			}
 		}
 
-		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", newAddressName)
+		outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", address, newAddressName)
 
 		// Generate commands
 		var commands []string
@@ -243,9 +320,20 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 			}
 		}
 
+		// Create detailed summary
+		summary := fmt.Sprintf("Generated commands for %d address groups\nAddress Mapping: %s → %s", 
+			len(itemsDict.AddressGroups), address, newAddressName)
+
+		addressMappings := make(map[string]string)
+		addressMappings[address] = newAddressName
+
 		return ProcessResult{
 			Success:           true,
 			OperationComplete: true,
+			OperationType:     "Address Group Commands",
+			OperationSummary:  summary,
+			FilesGenerated:    []string{outputFile},
+			AddressMappings:   addressMappings,
 		}
 	})
 }
@@ -272,9 +360,81 @@ func generateCleanupCmd(proc *processor.PANLogProcessor, configFile, address str
 			}
 		}
 
+		// Create detailed summary
+		var summary strings.Builder
+		summary.WriteString(fmt.Sprintf("Target Address: %s", commands.TargetAddress))
+		if len(commands.RedundantAddresses) > 0 {
+			summary.WriteString(fmt.Sprintf("\nRedundant Addresses: %d found", len(commands.RedundantAddresses)))
+		}
+		summary.WriteString(fmt.Sprintf("\nGenerated %d cleanup commands", commands.TotalCommands))
+
 		return ProcessResult{
 			Success:           true,
 			OperationComplete: true,
+			OperationType:     "Cleanup Commands",
+			OperationSummary:  summary.String(),
+			FilesGenerated:    []string{outputFile},
+		}
+	})
+}
+
+// generateSequentialAddressGroupCommands processes address mappings sequentially to avoid file conflicts
+func generateSequentialAddressGroupCommands(proc *processor.PANLogProcessor, addressMappings map[string]string, pendingCommands []tea.Cmd) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		var filesGenerated []string
+		var totalGroups int
+		var processedCount int
+		
+		// Process each address mapping sequentially
+		for sourceAddress, newAddress := range addressMappings {
+			itemsDict := proc.FormatResults(sourceAddress)
+			if len(itemsDict.AddressGroups) == 0 {
+				continue // Skip addresses with no groups
+			}
+
+			outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", sourceAddress, newAddress)
+
+			// Generate commands
+			var commands []string
+			for _, group := range itemsDict.AddressGroups {
+				if group.Context == "shared" {
+					commands = append(commands, fmt.Sprintf("set shared address-group %s static %s", group.Name, newAddress))
+				} else {
+					commands = append(commands, fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newAddress))
+				}
+			}
+
+			err := utils.WriteAddressGroupCommands(outputFile, sourceAddress, newAddress, commands, itemsDict.AddressGroups)
+			if err != nil {
+				return ProcessResult{
+					Success: false,
+					Error:   fmt.Errorf("error writing address group commands for %s: %w", sourceAddress, err),
+				}
+			}
+			
+			filesGenerated = append(filesGenerated, outputFile)
+			totalGroups += len(itemsDict.AddressGroups)
+			processedCount++
+		}
+		
+		// Create detailed summary
+		var summary strings.Builder
+		summary.WriteString(fmt.Sprintf("Processed %d address mappings", processedCount))
+		summary.WriteString(fmt.Sprintf("\nGenerated commands for %d address groups", totalGroups))
+		if len(addressMappings) > 1 {
+			summary.WriteString("\n\nAddress Mappings:")
+			for source, target := range addressMappings {
+				summary.WriteString(fmt.Sprintf("\n• %s → %s", source, target))
+			}
+		}
+		
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+			OperationType:     "Address Group Commands",
+			OperationSummary:  summary.String(),
+			FilesGenerated:    filesGenerated,
+			AddressMappings:   addressMappings,
 		}
 	})
 }

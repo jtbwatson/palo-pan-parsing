@@ -138,6 +138,7 @@ The modern TUI mode provides a comprehensive graphical interface within the term
 - **Perfect Alignment**: Consistent spacing and character alignment throughout all interface elements
 - **Real-time Feedback**: Progress indicators, status messages, and operation completion notifications
 - **Responsive Design**: Clean layout that adapts to terminal size with proper text wrapping
+- **Enhanced Session Summary**: Color-coded session tracking with intelligent formatting for better visual hierarchy
 
 ### Workflow States (9-State Machine)
 1. **Main Menu**: Choose analysis or exit with visual highlighting
@@ -150,6 +151,27 @@ The modern TUI mode provides a comprehensive graphical interface within the term
 8. **New Address Input**: Enter custom names for new address objects
 9. **Operation Status**: Feedback screen for command execution results
 10. **Error State**: Comprehensive error handling and user feedback
+
+### Session Summary Formatting
+The TUI features an intelligent session summary with enhanced visual formatting:
+
+#### Color Scheme
+- **Blue Italic**: Action descriptions ("Configuration Analysis Started", "Processing Started", "Analysis Complete")
+- **Yellow (Warning)**: Input files, target lists, and redundant address indicators
+- **Green (Success)**: Reference counts, address group detection, and successful operations
+- **Red (Error)**: Error conditions and failed operations
+- **White (Neutral)**: Default status information
+
+#### Smart Color Logic
+- **Contextual Coloring**: Status values are intelligently color-coded based on key-value relationships
+- **Pattern Recognition**: Automatic detection of success/warning/error indicators in text
+- **Priority-Based Styling**: Special cases override general patterns for accurate representation
+
+#### Display Features
+- **Count-Based Display**: Redundant addresses show counts (e.g., "Redundant Addresses: 3 found") instead of individual listings
+- **Structured Hierarchy**: Indented sub-items for operation details and file generation summaries
+- **Address Mappings**: Formatted arrows (→) for source-to-target address relationships
+- **Scrollable Content**: Session history with pagination for long analysis sessions
 
 ### Technical Implementation
 - **State Machine**: Clean state management with proper transitions and error handling

@@ -9,6 +9,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // AppState represents the current state of the application
@@ -33,6 +34,11 @@ type Model struct {
 	width  int
 	height int
 
+	// Pane layout
+	leftPaneWidth  int
+	rightPaneWidth int
+	showRightPane  bool
+
 	// Input fields
 	logFile         string
 	addresses       []string
@@ -41,8 +47,14 @@ type Model struct {
 	newAddressInput string
 
 	// Address group generation
-	addressesWithGroups   []string
-	selectedSourceAddress string
+	addressesWithGroups     []string
+	selectedSourceAddress   string
+	selectedSourceAddresses map[int]bool // Track which source addresses are selected
+	
+	// Individual address processing workflow
+	addressProcessingQueue []string      // Queue of addresses to process individually
+	currentProcessingIndex int           // Current index in the queue
+	addressNameMappings    map[string]string // Maps source address to new address name
 
 	// Pending operations
 	pendingCommands []tea.Cmd
@@ -58,6 +70,18 @@ type Model struct {
 	hasAddressGroups  bool
 	hasRedundantAddrs bool
 	operationMessage  string
+	
+	// Operation details for status display
+	lastOperationType     string
+	lastOperationSummary  string
+	lastFilesGenerated    []string
+	lastAddressMappings   map[string]string
+	lastAddresses         []string
+	lastConfigFile        string
+
+	// Output summary for right pane
+	outputSummary       []string
+	outputScrollOffset int
 
 	// Error handling
 	err error
@@ -74,11 +98,18 @@ type Model struct {
 func NewModel() Model {
 	prog := progress.New(progress.WithDefaultGradient())
 	return Model{
-		state:                StateMenu,
-		selected:             make(map[int]struct{}),
-		choices:              []string{"Analyze Configuration File", "Exit"},
-		postAnalysisSelected: make(map[int]bool),
-		progressBar:          prog,
+		state:                   StateMenu,
+		selected:                make(map[int]struct{}),
+		choices:                 []string{"Analyze Configuration File", "Exit"},
+		postAnalysisSelected:    make(map[int]bool),
+		selectedSourceAddresses: make(map[int]bool),
+		addressNameMappings:     make(map[string]string),
+		progressBar:             prog,
+		showRightPane:           false,
+		outputSummary:           []string{},
+		outputScrollOffset:      0,
+		leftPaneWidth:           0, // Will be set by window size
+		rightPaneWidth:          0,
 	}
 }
 
@@ -93,8 +124,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		
+		// Calculate pane sizes
+		if m.showRightPane {
+			m.leftPaneWidth = int(float64(m.width) * 0.6)  // 60% for left pane
+			m.rightPaneWidth = m.width - m.leftPaneWidth - 1 // 40% for right pane (minus 1 for separator)
+		} else {
+			m.leftPaneWidth = m.width
+			m.rightPaneWidth = 0
+		}
 
 	case tea.KeyMsg:
+		// Handle global scroll keys for right pane when it's visible
+		if m.showRightPane {
+			switch msg.String() {
+			case "pgup":
+				if m.outputScrollOffset > 0 {
+					m.outputScrollOffset -= 5
+					if m.outputScrollOffset < 0 {
+						m.outputScrollOffset = 0
+					}
+				}
+				return m, nil
+			case "pgdn":
+				maxScroll := len(m.outputSummary) - 10 // Approximate visible lines
+				if maxScroll < 0 {
+					maxScroll = 0
+				}
+				if m.outputScrollOffset < maxScroll {
+					m.outputScrollOffset += 5
+					if m.outputScrollOffset > maxScroll {
+						m.outputScrollOffset = maxScroll
+					}
+				}
+				return m, nil
+			}
+		}
+		
 		switch m.state {
 		case StateMenu:
 			return m.updateMenu(msg)
@@ -149,6 +215,314 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// renderWithDynamicWidth renders content with two-pane layout
+func (m Model) renderWithDynamicWidth(content string) string {
+	if m.width > 0 && m.height > 0 {
+		if m.showRightPane && m.leftPaneWidth > 0 && m.rightPaneWidth > 0 {
+			return m.renderTwoPaneLayout(content)
+		} else {
+			return m.renderSinglePaneLayout(content)
+		}
+	}
+	
+	// Fallback to original style if dimensions not set
+	return boxStyle.Render(content)
+}
+
+// renderSinglePaneLayout renders content in single pane mode
+func (m Model) renderSinglePaneLayout(content string) string {
+	// Leave some margin around the edges for visual breathing room
+	marginHorizontal := 2
+	marginVertical := 1
+	
+	// Calculate content area leaving margins
+	contentWidth := m.width - (marginHorizontal * 2) - 2  // 2 for border
+	contentHeight := m.height - (marginVertical * 2) - 2  // 2 for border
+	
+	// Ensure minimum usable size
+	if contentWidth < 50 {
+		contentWidth = 50
+	}
+	if contentHeight < 10 {
+		contentHeight = 10
+	}
+	
+	// Create the main content box
+	mainStyle := lipgloss.NewStyle().
+		Width(contentWidth).
+		Height(contentHeight).
+		Padding(1, 2).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(secondaryColor).
+		Align(lipgloss.Left)
+	
+	// Wrap in a positioning style to add the margins
+	return lipgloss.NewStyle().
+		Width(m.width).
+		Height(m.height).
+		Padding(marginVertical, marginHorizontal).
+		Render(mainStyle.Render(content))
+}
+
+// renderTwoPaneLayout renders content with left and right panes
+func (m Model) renderTwoPaneLayout(content string) string {
+	marginVertical := 1
+	contentHeight := m.height - (marginVertical * 2) - 2  // 2 for border
+	
+	if contentHeight < 10 {
+		contentHeight = 10
+	}
+	
+	// Calculate pane widths more simply
+	leftWidth := m.leftPaneWidth - 4   // Account for border and padding
+	rightWidth := m.rightPaneWidth - 4 // Account for border and padding
+	
+	// Left pane (main content)
+	leftPaneStyle := lipgloss.NewStyle().
+		Width(leftWidth).
+		Height(contentHeight).
+		Padding(1).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(secondaryColor)
+	
+	leftPane := leftPaneStyle.Render(content)
+	
+	// Right pane (output summary)  
+	rightPaneStyle := lipgloss.NewStyle().
+		Width(rightWidth).
+		Height(contentHeight).
+		Padding(1).
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(secondaryColor)
+	
+	rightPane := rightPaneStyle.Render(m.renderOutputSummary())
+	
+	// Combine panes horizontally
+	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, " ", rightPane)
+	
+	// Wrap with positioning
+	return lipgloss.NewStyle().
+		Padding(marginVertical, 1).
+		Render(combinedPanes)
+}
+
+// wrapText wraps text to fit within the specified width
+func (m Model) wrapText(text string, width int) []string {
+	if len(text) <= width {
+		return []string{text}
+	}
+	
+	var lines []string
+	words := strings.Fields(text)
+	var currentLine strings.Builder
+	
+	for _, word := range words {
+		// If adding this word would exceed the width, start a new line
+		if currentLine.Len() > 0 && currentLine.Len()+len(word)+1 > width {
+			lines = append(lines, currentLine.String())
+			currentLine.Reset()
+		}
+		
+		if currentLine.Len() > 0 {
+			currentLine.WriteString(" ")
+		}
+		currentLine.WriteString(word)
+	}
+	
+	if currentLine.Len() > 0 {
+		lines = append(lines, currentLine.String())
+	}
+	
+	return lines
+}
+
+// renderOutputSummary generates the content for the right pane with scrolling
+func (m Model) renderOutputSummary() string {
+	var s strings.Builder
+	
+	// Title for the output summary pane
+	s.WriteString(highlightStyle.Render("Session Summary") + "\n\n")
+	
+	if len(m.outputSummary) == 0 {
+		s.WriteString(helpStyle.Render("No operations completed yet.\n\nAnalysis results and operations\nwill appear here as you\nprogress through the workflow."))
+	} else {
+		// Calculate visible area (approximate based on height)
+		visibleLines := m.height - 8 // Account for borders, padding, title
+		if visibleLines < 5 {
+			visibleLines = 5
+		}
+		
+		// Apply scroll offset
+		startIdx := m.outputScrollOffset
+		endIdx := startIdx + visibleLines
+		
+		if startIdx >= len(m.outputSummary) {
+			startIdx = len(m.outputSummary) - 1
+			if startIdx < 0 {
+				startIdx = 0
+			}
+		}
+		
+		if endIdx > len(m.outputSummary) {
+			endIdx = len(m.outputSummary)
+		}
+		
+		// Render visible lines
+		for i := startIdx; i < endIdx; i++ {
+			if i < len(m.outputSummary) {
+				s.WriteString(m.outputSummary[i])
+				if i < endIdx-1 {
+					s.WriteString("\n")
+				}
+			}
+		}
+		
+		// Add scroll indicator if content is scrollable
+		if len(m.outputSummary) > visibleLines {
+			s.WriteString("\n\n" + helpStyle.Render("PgUp/PgDn to scroll"))
+		}
+	}
+	
+	return s.String()
+}
+
+// addToOutputSummary adds an item to the output summary
+func (m *Model) addToOutputSummary(item string) {
+	m.outputSummary = append(m.outputSummary, item)
+}
+
+// clearOutputSummary clears the output summary
+func (m *Model) clearOutputSummary() {
+	m.outputSummary = []string{}
+	m.outputScrollOffset = 0
+}
+
+// formatSessionAction formats an action description with italic styling
+func formatSessionAction(action string) string {
+	return sessionActionStyle.Render(action)
+}
+
+// formatSessionStatus formats a status line with key: value format and intelligent coloring
+func formatSessionStatus(key, value string) string {
+	keyStyled := sessionStatusStyle.Render(key + ": ")
+	valueStyled := determineValueStyle(key, value).Render(value)
+	return keyStyled + valueStyled
+}
+
+// determineValueStyle intelligently determines the appropriate style for a status value
+func determineValueStyle(key, value string) lipgloss.Style {
+	// Convert to lowercase for easier comparison
+	lowerKey := strings.ToLower(key)
+	lowerValue := strings.ToLower(value)
+	
+	// Handle special cases first before pattern matching
+	switch lowerKey {
+	case "redundant addresses":
+		// Redundant addresses should always be warning colored
+		return sessionWarningValueStyle
+	case "target address":
+		// Target addresses should be success colored (actual address names)
+		return sessionSuccessValueStyle
+	case "file", "targets":
+		// File names and target addresses should be warning colored
+		return sessionWarningValueStyle
+	case "files generated", "cleanup commands":
+		// Non-zero counts should be success colored
+		if lowerValue != "0" && lowerValue != "" {
+			return sessionSuccessValueStyle
+		}
+	}
+	
+	// Success indicators (green)
+	successPatterns := []string{
+		"complete", "completed", "success", "successful", "found", "generated", "created", "finished",
+	}
+	for _, pattern := range successPatterns {
+		if strings.Contains(lowerValue, pattern) || strings.Contains(lowerKey, pattern) {
+			return sessionSuccessValueStyle
+		}
+	}
+	
+	// Error indicators (red)
+	errorPatterns := []string{
+		"error", "failed", "failure", "not found", "missing", "invalid", "corrupt",
+	}
+	for _, pattern := range errorPatterns {
+		if strings.Contains(lowerValue, pattern) || strings.Contains(lowerKey, pattern) {
+			return sessionErrorValueStyle
+		}
+	}
+	
+	// Warning indicators (yellow)
+	warningPatterns := []string{
+		"warning", "partial", "limited", "timeout", "retry", "skipped",
+	}
+	for _, pattern := range warningPatterns {
+		if strings.Contains(lowerValue, pattern) || strings.Contains(lowerKey, pattern) {
+			return sessionWarningValueStyle
+		}
+	}
+	
+	// Additional special logic for remaining keys
+	switch lowerKey {
+	case "total references", "addresses", "address groups":
+		// Numbers and "Found" should be success colored
+		if lowerValue == "found" || (lowerValue != "0" && lowerValue != "") {
+			return sessionSuccessValueStyle
+		}
+	}
+	
+	// Default neutral styling
+	return sessionNeutralValueStyle
+}
+
+// addFormattedAction adds a formatted action to the output summary
+func (m *Model) addFormattedAction(action string) {
+	m.addToOutputSummary(formatSessionAction(action))
+}
+
+// addFormattedStatus adds a formatted status line to the output summary
+func (m *Model) addFormattedStatus(key, value string) {
+	m.addToOutputSummary(formatSessionStatus(key, value))
+}
+
+// addFormattedStatusIndented adds a formatted status line with indentation
+func (m *Model) addFormattedStatusIndented(key, value string) {
+	m.addToOutputSummary("  " + formatSessionStatus(key, value))
+}
+
+// addFormattedMapping adds a formatted address mapping line
+func (m *Model) addFormattedMapping(source, target string) {
+	sourceStyled := sessionNeutralValueStyle.Render(source)
+	arrowStyled := sessionStatusStyle.Render(" → ")
+	targetStyled := sessionSuccessValueStyle.Render(target)
+	m.addToOutputSummary("  " + sourceStyled + arrowStyled + targetStyled)
+}
+
+// addFormattedLine adds a formatted line by parsing key: value pairs
+func (m *Model) addFormattedLine(line string, indented bool) {
+	line = strings.TrimSpace(line)
+	if strings.Contains(line, ":") {
+		parts := strings.SplitN(line, ":", 2)
+		if len(parts) == 2 {
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+			if indented {
+				m.addFormattedStatusIndented(key, value)
+			} else {
+				m.addFormattedStatus(key, value)
+			}
+			return
+		}
+	}
+	// Fallback for lines that don't match key:value format
+	if indented {
+		m.addToOutputSummary("  " + line)
+	} else {
+		m.addToOutputSummary(line)
+	}
+}
+
 // View implements tea.Model
 func (m Model) View() string {
 	switch m.state {
@@ -194,7 +568,7 @@ func (m Model) updateMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch m.cursor {
 		case 0: // Analyze Configuration File
 			m.state = StateFileInput
-			m.fileInput = "default.log"
+			// Don't pre-populate fileInput - leave empty for placeholder
 		case 1: // Exit
 			return m, tea.Quit
 		}
@@ -237,7 +611,7 @@ func (m Model) viewMenu() string {
 
 	s.WriteString(helpStyle.Render("Use ↑/↓ to navigate, Enter to select, q to quit"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // File input state handlers
@@ -250,8 +624,20 @@ func (m Model) updateFileInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter":
 		if m.fileInput != "" {
 			m.logFile = m.fileInput
-			m.state = StateAddressInput
+		} else {
+			m.logFile = "default.log" // Use default when field is empty
 		}
+		// Enable right pane and add initial summary  
+		m.showRightPane = true
+		// Calculate pane sizes immediately if we have width
+		if m.width > 0 {
+			m.leftPaneWidth = int(float64(m.width) * 0.6)  // 60% for left pane
+			m.rightPaneWidth = m.width - m.leftPaneWidth - 1 // 40% for right pane (minus 1 for separator)
+		}
+		m.clearOutputSummary()
+		m.addFormattedAction("Configuration Analysis Started")
+		m.addFormattedStatus("File", m.logFile)
+		m.state = StateAddressInput
 	case "backspace":
 		if len(m.fileInput) > 0 {
 			m.fileInput = m.fileInput[:len(m.fileInput)-1]
@@ -274,18 +660,20 @@ func (m Model) viewFileInput() string {
 	s.WriteString("Enter the path to your PAN configuration file:\n")
 	s.WriteString(helpStyle.Render("Supports both local files and full file paths") + "\n\n")
 
-	// Clean input styling - just highlight the text, no messy boxes
-	displayText := m.fileInput
-	if displayText == "" {
-		displayText = "default.log"
-	}
+	// Clean input styling with placeholder support
 	cursor := "█"
-
-	s.WriteString(inputFieldStyle.Render("File: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
+	
+	if m.fileInput == "" {
+		// Show placeholder text when field is empty
+		s.WriteString(inputFieldStyle.Render("File: ") + placeholderStyle.Render("default.log") + cursor + "\n\n")
+	} else {
+		// Show actual input text
+		s.WriteString(inputFieldStyle.Render("File: ") + inputTextStyle.Render(m.fileInput) + cursor + "\n\n")
+	}
 
 	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // Address input state handlers
@@ -306,6 +694,10 @@ func (m Model) updateAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				}
 			}
 			if len(m.addresses) > 0 {
+				// Add to output summary
+				m.addFormattedAction("Processing Started")
+				m.addFormattedStatus("Targets", strings.Join(m.addresses, ", "))
+				
 				// Start processing
 				m.state = StateProcessing
 				m.processingDots = 0
@@ -351,7 +743,7 @@ func (m Model) viewAddressInput() string {
 
 	s.WriteString(helpStyle.Render("Enter to analyze, Esc to go back, Ctrl+C to quit"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // Processing state
@@ -381,7 +773,7 @@ func (m Model) viewProcessing() string {
 
 	s.WriteString(helpStyle.Render("Please wait while we analyze your configuration..."))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // Results state handlers
@@ -423,7 +815,7 @@ func (m Model) viewResults() string {
 
 	s.WriteString(helpStyle.Render("Esc to return to menu, q to quit"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // Post-analysis state handlers
@@ -468,6 +860,8 @@ func (m Model) updatePostAnalysis(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		switch choice {
 		case "Execute Selected Operations":
 			return m.executeSelectedOperations()
+		case "No Additional Options":
+			return m.showComprehensiveAnalysisSummary()
 		case "Return to Main Menu":
 			m.state = StateMenu
 			// Reset for next analysis
@@ -477,6 +871,13 @@ func (m Model) updatePostAnalysis(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.results = ""
 			m.cursor = 0
 			m.postAnalysisSelected = make(map[int]bool)
+			// Clear operation details
+			m.lastOperationType = ""
+			m.lastOperationSummary = ""
+			m.lastFilesGenerated = nil
+			// Reset right pane
+			m.showRightPane = false
+			m.clearOutputSummary()
 		}
 	}
 
@@ -524,12 +925,16 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 		if len(m.addressesWithGroups) == 1 {
 			// Only one address has groups, go directly to new address input
 			m.selectedSourceAddress = m.addressesWithGroups[0]
+			m.selectedSourceAddresses = make(map[int]bool)
+			m.selectedSourceAddresses[0] = true
 			m.state = StateNewAddressInput
 			m.newAddressInput = ""
 		} else if len(m.addressesWithGroups) > 1 {
 			// Multiple addresses have groups, let user choose
 			m.state = StateSelectSourceAddress
 			m.cursor = 0
+			// Clear any previous selections
+			m.selectedSourceAddresses = make(map[int]bool)
 		} else {
 			// No addresses with groups (shouldn't happen)
 			m.operationMessage = "No addresses with address groups found"
@@ -545,6 +950,13 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Reset accumulated operation details before starting new operations
+	// (Only reset for the operation status display, not the session summary)
+	m.lastOperationType = ""
+	m.lastOperationSummary = ""
+	m.lastFilesGenerated = nil
+	m.lastAddressMappings = nil
+	
 	// Set status message for operations being executed
 	if len(selectedOps) == 1 {
 		m.operationMessage = "Executing: " + selectedOps[0]
@@ -553,13 +965,16 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 	}
 	m.state = StateOperationStatus
 
-	// If only one command, execute it directly
+	// Execute commands (sequentially if multiple, to ensure all results are captured)
 	if len(cmds) == 1 {
 		return m, cmds[0]
+	} else if len(cmds) > 1 {
+		// For multiple commands, execute the first one and store the rest for sequential execution
+		m.pendingCommands = cmds[1:] // Store remaining commands
+		return m, cmds[0] // Execute first command
 	}
 
-	// For multiple commands, we need to batch them
-	return m, tea.Batch(cmds...)
+	return m, nil
 }
 
 func (m Model) viewPostAnalysis() string {
@@ -618,7 +1033,7 @@ func (m Model) viewPostAnalysis() string {
 			}
 			continue
 		} else {
-			// Action items (Execute, Return to Menu) - align with checkbox text
+			// Action items (Execute, No Additional Options, Return to Menu) - align with checkbox text
 			var displayChoice string
 			if m.cursor == i {
 				displayChoice = selectedStyle.Render(choice)
@@ -628,6 +1043,13 @@ func (m Model) viewPostAnalysis() string {
 
 			// cursor(2) + checkbox(4) + space(1) = 7 total characters to align with
 			line = cursor + "      " + displayChoice // 6 spaces to align properly
+			
+			// Add description for No Additional Options
+			if choice == "No Additional Options" {
+				s.WriteString(line + "\n")
+				s.WriteString("       " + helpStyle.Render("View comprehensive analysis summary with all results") + "\n")
+				continue
+			}
 		}
 
 		s.WriteString(line + "\n")
@@ -635,7 +1057,7 @@ func (m Model) viewPostAnalysis() string {
 
 	s.WriteString("\n" + helpStyle.Render("↑/↓ navigate • Space to select • Enter to execute • Esc to go back"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // Operation status state handlers
@@ -656,19 +1078,101 @@ func (m Model) viewOperationStatus() string {
 	var s strings.Builder
 
 	title := titleStyle.Render("Operation Status")
-	s.WriteString(title + "\n")
+	s.WriteString(title + "\n\n")
 
 	if m.operationMessage != "" {
 		if strings.Contains(m.operationMessage, "No operations selected") {
 			s.WriteString(warningStyle.Render(m.operationMessage) + "\n\n")
 		} else {
-			s.WriteString(m.operationMessage + "\n\n")
+			// Show success message
+			s.WriteString(successStyle.Render("✅ " + m.operationMessage) + "\n\n")
+			
+			// Show detailed operation summary if available
+			if m.lastOperationType != "" {
+				s.WriteString(highlightStyle.Render("Operation: ") + m.lastOperationType + "\n\n")
+				
+				// Show configuration file if available
+				if m.lastConfigFile != "" {
+					s.WriteString(highlightStyle.Render("Configuration File: ") + m.lastConfigFile + "\n\n")
+				}
+				
+				// Show addresses analyzed if available
+				if len(m.lastAddresses) > 0 {
+					s.WriteString(highlightStyle.Render("Addresses: ") + strings.Join(m.lastAddresses, ", ") + "\n\n")
+				}
+				
+				// Show address mappings if available (for address group operations)
+				if len(m.lastAddressMappings) > 0 {
+					s.WriteString(highlightStyle.Render("Address Mappings:") + "\n")
+					for source, target := range m.lastAddressMappings {
+						s.WriteString("  " + source + " → " + target + "\n")
+					}
+					s.WriteString("\n")
+				}
+				
+				if m.lastOperationSummary != "" {
+					s.WriteString(highlightStyle.Render("Summary:") + "\n")
+					
+					// Process summary line by line for proper indentation and wrapping
+					summaryLines := strings.Split(strings.TrimSpace(m.lastOperationSummary), "\n")
+					for _, line := range summaryLines {
+						line = strings.TrimSpace(line)
+						if line != "" {
+							// Handle long lines by wrapping them
+							maxLineLength := 80
+							if m.width > 0 {
+								maxLineLength = m.width - 20 // Leave room for indentation and borders
+								if maxLineLength < 40 {
+									maxLineLength = 40
+								}
+							}
+							
+							if len(line) <= maxLineLength {
+								if strings.HasPrefix(line, "•") || strings.HasPrefix(line, "-") {
+									s.WriteString("  " + line + "\n")
+								} else if strings.Contains(line, ":") && !strings.HasPrefix(line, " ") {
+									s.WriteString(line + "\n")
+								} else {
+									s.WriteString("  " + line + "\n")
+								}
+							} else {
+								// Wrap long lines
+								wrapped := m.wrapText(line, maxLineLength)
+								for i, wrappedLine := range wrapped {
+									if i == 0 {
+										if strings.HasPrefix(line, "•") || strings.HasPrefix(line, "-") {
+											s.WriteString("  " + wrappedLine + "\n")
+										} else if strings.Contains(line, ":") && !strings.HasPrefix(line, " ") {
+											s.WriteString(wrappedLine + "\n")
+										} else {
+											s.WriteString("  " + wrappedLine + "\n")
+										}
+									} else {
+										s.WriteString("    " + wrappedLine + "\n") // Extra indent for continuation
+									}
+								}
+							}
+						}
+					}
+					s.WriteString("\n")
+				}
+				
+				if len(m.lastFilesGenerated) > 0 {
+					s.WriteString(highlightStyle.Render("Files Generated:") + "\n")
+					for _, file := range m.lastFilesGenerated {
+						// Show just the filename without redundant outputs/ prefix
+						cleanFile := strings.TrimPrefix(file, "outputs/")
+						s.WriteString("  📄 " + cleanFile + "\n")
+					}
+					s.WriteString("\n")
+				}
+			}
 		}
 	}
 
 	s.WriteString(helpStyle.Render("Press any key to return to Additional Options menu, q to quit"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // Error state handlers
@@ -700,7 +1204,7 @@ func (m Model) viewError() string {
 
 	s.WriteString(helpStyle.Render("Esc to return to menu, q to quit"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // New address input state handlers
@@ -714,26 +1218,24 @@ func (m Model) updateNewAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.pendingCommands = nil // Clear pending commands when canceling
 	case "enter":
 		if m.newAddressInput != "" {
-			// Generate address group commands with the new name
-			if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
-				if m.selectedSourceAddress != "" {
-					m.state = StateOperationStatus
-					m.operationMessage = "Executing selected operations..."
-
-					// Create address group command
-					addressGroupCmd := generateAddressGroupCmdWithName(proc, m.selectedSourceAddress, m.newAddressInput)
-
-					// If we have pending commands, execute them all together
-					if len(m.pendingCommands) > 0 {
-						// Add the address group command to pending commands
-						allCmds := append([]tea.Cmd{addressGroupCmd}, m.pendingCommands...)
-						m.pendingCommands = nil // Clear pending commands
-						return m, tea.Batch(allCmds...)
-					} else {
-						// Just execute the address group command
-						return m, addressGroupCmd
-					}
+			// Save the current address mapping
+			if len(m.addressProcessingQueue) > 0 && m.currentProcessingIndex < len(m.addressProcessingQueue) {
+				currentAddress := m.addressProcessingQueue[m.currentProcessingIndex]
+				m.addressNameMappings[currentAddress] = m.newAddressInput
+				
+				// Move to next address or finish processing
+				m.currentProcessingIndex++
+				if m.currentProcessingIndex < len(m.addressProcessingQueue) {
+					// More addresses to process, continue to next one
+					m.newAddressInput = ""
+					// Stay in StateNewAddressInput for next address
+				} else {
+					// All addresses processed, generate commands for all mappings
+					return m.generateAllAddressGroupCommands()
 				}
+			} else {
+				// Fallback for single address (backward compatibility)
+				return m.generateSingleAddressGroupCommand()
 			}
 		}
 	case "backspace":
@@ -755,11 +1257,29 @@ func (m Model) viewNewAddressInput() string {
 	title := titleStyle.Render("New Address Name")
 	s.WriteString(title + "\n")
 
-	if m.selectedSourceAddress != "" {
-		s.WriteString(fmt.Sprintf("Source address: %s\n", highlightStyle.Render(m.selectedSourceAddress)))
+	// Show current address being processed and progress
+	if len(m.addressProcessingQueue) > 0 && m.currentProcessingIndex < len(m.addressProcessingQueue) {
+		currentAddress := m.addressProcessingQueue[m.currentProcessingIndex]
+		progress := fmt.Sprintf("(%d of %d)", m.currentProcessingIndex+1, len(m.addressProcessingQueue))
+		
+		s.WriteString(fmt.Sprintf("Processing address %s: %s\n", progress, highlightStyle.Render(currentAddress)))
+		s.WriteString("Enter the name for the new address object:\n")
+		s.WriteString(fmt.Sprintf("(This will be added to the same groups as %s)\n\n", currentAddress))
+	} else {
+		// Fallback for single address (backward compatibility)
+		selectedAddresses := []string{}
+		for i, selected := range m.selectedSourceAddresses {
+			if selected && i < len(m.addressesWithGroups) {
+				selectedAddresses = append(selectedAddresses, m.addressesWithGroups[i])
+			}
+		}
+		
+		if len(selectedAddresses) > 0 {
+			s.WriteString(fmt.Sprintf("Source address: %s\n", highlightStyle.Render(selectedAddresses[0])))
+		}
+		s.WriteString("Enter the name for the new address object:\n")
+		s.WriteString("(This will be added to the same groups as the source address)\n\n")
 	}
-	s.WriteString("Enter the name for the new address object:\n")
-	s.WriteString("(This will be added to the same groups as the source address)\n\n")
 
 	// Clean input styling
 	displayText := m.newAddressInput
@@ -772,7 +1292,7 @@ func (m Model) viewNewAddressInput() string {
 
 	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
 
-	return boxStyle.Render(s.String())
+	return m.renderWithDynamicWidth(s.String())
 }
 
 // Source address selection state handlers
@@ -791,9 +1311,23 @@ func (m Model) updateSelectSourceAddress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor < len(m.addressesWithGroups)-1 {
 			m.cursor++
 		}
-	case "enter":
+	case " ": // Spacebar to toggle selection
 		if m.cursor < len(m.addressesWithGroups) {
-			m.selectedSourceAddress = m.addressesWithGroups[m.cursor]
+			m.selectedSourceAddresses[m.cursor] = !m.selectedSourceAddresses[m.cursor]
+		}
+	case "enter":
+		// Build queue of selected addresses for individual processing
+		m.addressProcessingQueue = []string{}
+		for i, selected := range m.selectedSourceAddresses {
+			if selected && i < len(m.addressesWithGroups) {
+				m.addressProcessingQueue = append(m.addressProcessingQueue, m.addressesWithGroups[i])
+			}
+		}
+		
+		if len(m.addressProcessingQueue) > 0 {
+			// Start processing the first address
+			m.currentProcessingIndex = 0
+			m.addressNameMappings = make(map[string]string) // Reset mappings
 			m.state = StateNewAddressInput
 			m.newAddressInput = ""
 		}
@@ -805,10 +1339,10 @@ func (m Model) updateSelectSourceAddress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) viewSelectSourceAddress() string {
 	var s strings.Builder
 
-	title := titleStyle.Render("Select Source Address")
+	title := titleStyle.Render("Select Source Addresses")
 	s.WriteString(title + "\n\n")
 
-	s.WriteString("Multiple addresses have address groups. Select which one to use as the source:\n\n")
+	s.WriteString("Multiple addresses have address groups. Select which ones to use as sources:\n\n")
 
 	for i, address := range m.addressesWithGroups {
 		cursor := "  "
@@ -816,16 +1350,95 @@ func (m Model) viewSelectSourceAddress() string {
 			cursor = "> "
 		}
 
-		if i == m.cursor {
-			s.WriteString(selectedStyle.Render(cursor+address) + "\n")
+		// Checkbox indicator (matching post-analysis style)
+		var checkbox string
+		if m.selectedSourceAddresses[i] {
+			checkbox = "[✓]"
 		} else {
-			s.WriteString(choiceStyle.Render(cursor+address) + "\n")
+			checkbox = "[ ]"
+		}
+
+		line := cursor + " " + checkbox + " " + address
+		if i == m.cursor {
+			s.WriteString(selectedStyle.Render(line) + "\n")
+		} else {
+			s.WriteString(choiceStyle.Render(line) + "\n")
 		}
 	}
 
-	s.WriteString("\n" + helpStyle.Render("↑/↓ to navigate, Enter to select, Esc to go back, Ctrl+C to quit"))
+	// Show count of selected items
+	selectedCount := 0
+	for _, selected := range m.selectedSourceAddresses {
+		if selected {
+			selectedCount++
+		}
+	}
 
-	return boxStyle.Render(s.String())
+	s.WriteString("\n" + helpStyle.Render(fmt.Sprintf("Selected: %d | ↑/↓ to navigate, Space to toggle, Enter to continue, Esc to go back", selectedCount)))
+
+	return m.renderWithDynamicWidth(s.String())
+}
+
+// showComprehensiveAnalysisSummary displays a comprehensive summary of the analysis
+func (m Model) showComprehensiveAnalysisSummary() (Model, tea.Cmd) {
+	// Create comprehensive summary from analysis results
+	if analysisResults, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
+		if addresses, ok := m.analysisResults["addresses"].([]string); ok {
+			if configFile, ok := m.analysisResults["configFile"].(string); ok {
+				// Store comprehensive analysis summary
+				m.lastOperationType = "Analysis Summary"
+				m.lastConfigFile = configFile
+				m.lastAddresses = addresses
+				
+				// Generate comprehensive summary
+				var summaryBuilder strings.Builder
+				summaryBuilder.WriteString(fmt.Sprintf("Configuration File: %s\n", configFile))
+				summaryBuilder.WriteString(fmt.Sprintf("Addresses Analyzed: %s\n", strings.Join(addresses, ", ")))
+				
+				// Count total findings
+				totalMatches := 0
+				addressGroupCount := 0
+				redundantAddressCount := 0
+				var allFiles []string
+				
+				for _, address := range addresses {
+					if result, exists := analysisResults.Results[address]; exists {
+						totalMatches += len(result.MatchingLines)
+					}
+					
+					// Check for additional analysis results
+					itemsDict := analysisResults.FormatResults(address)
+					addressGroupCount += len(itemsDict.AddressGroups)
+					redundantAddressCount += len(itemsDict.RedundantAddresses)
+					
+					// Add result file
+					resultFile := fmt.Sprintf("%s_results.yml", address)
+					allFiles = append(allFiles, resultFile)
+				}
+				
+				summaryBuilder.WriteString(fmt.Sprintf("Total Configuration References: %d\n", totalMatches))
+				if addressGroupCount > 0 {
+					summaryBuilder.WriteString(fmt.Sprintf("Address Groups Found: %d\n", addressGroupCount))
+				}
+				if redundantAddressCount > 0 {
+					summaryBuilder.WriteString(fmt.Sprintf("Redundant Addresses Found: %d", redundantAddressCount))
+				}
+				
+				m.lastOperationSummary = summaryBuilder.String()
+				m.lastFilesGenerated = allFiles
+				m.operationMessage = "Analysis completed successfully!"
+				m.state = StateOperationStatus
+				return m, nil
+			}
+		}
+	}
+	
+	// Fallback if analysis results not available
+	m.lastOperationType = "Analysis Summary"
+	m.lastOperationSummary = "Analysis completed - see result files for details"
+	m.operationMessage = "Analysis completed successfully!"
+	m.state = StateOperationStatus
+	return m, nil
 }
 
 // TickMsg is sent periodically for animations
@@ -843,4 +1456,64 @@ func checkProcessingCompleteCmd() tea.Cmd {
 	return tea.Tick(100*time.Millisecond, func(t time.Time) tea.Msg {
 		return ProgressPollMsg{}
 	})
+}
+
+// generateAllAddressGroupCommands generates commands for all address mappings
+func (m Model) generateAllAddressGroupCommands() (Model, tea.Cmd) {
+	if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
+		newModel := m
+		newModel.state = StateOperationStatus
+		newModel.operationMessage = fmt.Sprintf("Executing operations for %d address mappings...", len(m.addressNameMappings))
+
+		// Create a sequential command to process all mappings
+		cmd := generateSequentialAddressGroupCommands(proc, m.addressNameMappings, m.pendingCommands)
+		// DON'T clear pending commands - they need to be executed after address group commands complete
+		// newModel.pendingCommands = nil // Keep pending commands for later execution
+		return newModel, cmd
+	}
+	
+	// Fallback to operation status with error
+	newModel := m
+	newModel.state = StateOperationStatus
+	newModel.operationMessage = "Error: Could not generate address group commands"
+	return newModel, nil
+}
+
+// generateSingleAddressGroupCommand generates command for single address (backward compatibility)
+func (m Model) generateSingleAddressGroupCommand() (Model, tea.Cmd) {
+	if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
+		var sourceAddress string
+		
+		// Find the selected source address
+		for i, selected := range m.selectedSourceAddresses {
+			if selected && i < len(m.addressesWithGroups) {
+				sourceAddress = m.addressesWithGroups[i]
+				break
+			}
+		}
+		
+		if sourceAddress != "" {
+			cmd := generateAddressGroupCmdWithName(proc, sourceAddress, m.newAddressInput)
+			newModel := m
+			newModel.state = StateOperationStatus
+			newModel.operationMessage = "Executing address group operation..."
+
+			// If we have pending commands, execute them all together
+			if len(m.pendingCommands) > 0 {
+				// Add the address group command to pending commands
+				allCmds := append([]tea.Cmd{cmd}, m.pendingCommands...)
+				newModel.pendingCommands = nil // Clear pending commands
+				return newModel, tea.Batch(allCmds...)
+			} else {
+				// Just execute the address group command
+				return newModel, cmd
+			}
+		}
+	}
+	
+	// Fallback to operation status with error
+	newModel := m
+	newModel.state = StateOperationStatus
+	newModel.operationMessage = "Error: Could not generate address group command"
+	return newModel, nil
 }
