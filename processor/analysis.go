@@ -54,13 +54,26 @@ func (p *PANLogProcessor) findRedundantAddresses(ipToAddresses map[string][]mode
 
 // findIndirectRulesMemory finds security rules that reference address groups containing our addresses (in-memory version)
 func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses []string) {
-	// Collect all address groups from results
-	allGroups := make(map[string]models.GroupInfo)
-	for _, addr := range addresses {
-		for _, group := range p.Results[addr].AddressGroups {
-			allGroups[group.Name] = models.GroupInfo{
-				Group:   group,
-				Address: addr,
+	// Do a comprehensive scan for ALL address groups containing our target addresses
+	// This ensures we don't miss groups that weren't discovered during the initial pass
+	groupToAddresses := make(map[string]map[string]bool) // group name -> set of addresses
+	allGroups := make(map[string]models.AddressGroup)    // group name -> group info
+	
+	// Scan all lines for address groups containing our target addresses
+	for _, line := range allLines {
+		if agInfo := p.extractAddressGroup(line); agInfo != nil {
+			// Check which of our target addresses this group contains
+			containedAddresses := make(map[string]bool)
+			for _, addr := range addresses {
+				if strings.Contains(line, addr) {
+					containedAddresses[addr] = true
+				}
+			}
+			
+			// If this group contains any of our addresses, store it
+			if len(containedAddresses) > 0 {
+				allGroups[agInfo.Name] = *agInfo
+				groupToAddresses[agInfo.Name] = containedAddresses
 			}
 		}
 	}
@@ -69,14 +82,10 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 		return
 	}
 
-	// Pre-compile all regex patterns for performance (using simple matching like Python version)
-	groupPatterns := make(map[string]*models.GroupPattern)
-	for name, info := range allGroups {
-		pattern := regexp.MustCompile(regexp.QuoteMeta(name))
-		groupPatterns[name] = &models.GroupPattern{
-			Pattern: pattern,
-			Info:    info,
-		}
+	// Pre-compile all regex patterns for performance
+	groupPatterns := make(map[string]*regexp.Regexp)
+	for name := range allGroups {
+		groupPatterns[name] = regexp.MustCompile(regexp.QuoteMeta(name))
 	}
 
 	totalLines := len(allLines)
@@ -100,22 +109,19 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 			continue
 		}
 
-		// Check if line references any of our address groups (optimized)
-		var referencedGroups []models.ReferencedGroup
+		// Check if line references any of our address groups
+		var matchedGroups []string
 		hasMatches := false
 
 		// Pre-filter with fast string search before regex
-		for name, gp := range groupPatterns {
+		for name, pattern := range groupPatterns {
 			if idx := strings.Index(line, name); idx != -1 {
-				if gp.Pattern.MatchString(line) {
+				if pattern.MatchString(line) {
 					if !hasMatches {
-						referencedGroups = make([]models.ReferencedGroup, 0, len(groupPatterns))
+						matchedGroups = make([]string, 0, len(groupPatterns))
 						hasMatches = true
 					}
-					referencedGroups = append(referencedGroups, models.ReferencedGroup{
-						Name: name,
-						Info: gp.Info,
-					})
+					matchedGroups = append(matchedGroups, name)
 				}
 			}
 		}
@@ -138,39 +144,43 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 		}
 
 		// Add to results for each relevant address
-		for _, rg := range referencedGroups {
-			targetAddr := rg.Info.Address
-
-			// Skip if already in direct rules
-			if _, exists := p.Results[targetAddr].DirectRules[ruleName]; exists {
-				continue
-			}
-
-			p.Results[targetAddr].IndirectRules[ruleName] = deviceGroup
-
-			// Create context
-			context := fmt.Sprintf("references address-group '%s' that contains %s", rg.Name, targetAddr)
-			if rg.Info.Group.Context == "shared" {
-				context = fmt.Sprintf("references shared address-group '%s' that contains %s", rg.Name, targetAddr)
-			} else if rg.Info.Group.Context == "device-group" {
-				context = fmt.Sprintf("references address-group '%s' from device-group '%s' that contains %s",
-					rg.Name, rg.Info.Group.DeviceGroup, targetAddr)
-			}
-
-			// Add usage context
-			if strings.Contains(line, "destination") {
-				destParts := strings.Split(line, "destination")
-				if len(destParts) > 1 && strings.Contains(destParts[1], rg.Name) {
-					context += " (in destination)"
+		for _, groupName := range matchedGroups {
+			groupInfo := allGroups[groupName]
+			containedAddresses := groupToAddresses[groupName]
+			
+			// Add rule to each address contained in this group
+			for targetAddr := range containedAddresses {
+				// Skip if already in direct rules
+				if _, exists := p.Results[targetAddr].DirectRules[ruleName]; exists {
+					continue
 				}
-			} else if strings.Contains(line, "source") {
-				sourceParts := strings.Split(line, "source")
-				if len(sourceParts) > 1 && strings.Contains(sourceParts[1], rg.Name) {
-					context += " (in source)"
-				}
-			}
 
-			p.Results[targetAddr].IndirectRuleContexts[ruleName] = context
+				p.Results[targetAddr].IndirectRules[ruleName] = deviceGroup
+
+				// Create context
+				context := fmt.Sprintf("references address-group '%s' that contains %s", groupName, targetAddr)
+				if groupInfo.Context == "shared" {
+					context = fmt.Sprintf("references shared address-group '%s' that contains %s", groupName, targetAddr)
+				} else if groupInfo.Context == "device-group" {
+					context = fmt.Sprintf("references address-group '%s' from device-group '%s' that contains %s",
+						groupName, groupInfo.DeviceGroup, targetAddr)
+				}
+
+				// Add usage context
+				if strings.Contains(line, "destination") {
+					destParts := strings.Split(line, "destination")
+					if len(destParts) > 1 && strings.Contains(destParts[1], groupName) {
+						context += " (in destination)"
+					}
+				} else if strings.Contains(line, "source") {
+					sourceParts := strings.Split(line, "source")
+					if len(sourceParts) > 1 && strings.Contains(sourceParts[1], groupName) {
+						context += " (in source)"
+					}
+				}
+
+				p.Results[targetAddr].IndirectRuleContexts[ruleName] = context
+			}
 		}
 	}
 }
