@@ -1074,14 +1074,14 @@ func (m Model) viewPostAnalysis() string {
 			}
 
 			// cursor(2) + checkbox(4) + space(1) = 7 total characters to align with
-			line = cursor + "      " + displayChoice // 6 spaces to align properly
+			line = cursor + "   • " + displayChoice // 5 spaces to align properly
 			
 			// Add description for No Additional Options
-			if choice == "No Additional Options" {
-				s.WriteString(line + "\n")
-				s.WriteString("       " + helpStyle.Render("View comprehensive analysis summary with all results") + "\n")
-				continue
-			}
+			// if choice == "No Additional Options" {
+			// 	s.WriteString(line + "\n")
+			// 	s.WriteString("       " + helpStyle.Render("View comprehensive analysis summary with all results") + "\n")
+			// 	continue
+			// }
 		}
 
 		s.WriteString(line + "\n")
