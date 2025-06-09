@@ -218,7 +218,8 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 				return m, nextCmd
 			}
 			
-			m.state = StateOperationStatus
+			// All operations completed - show thank you screen
+			m.state = StateCompleted
 			return m, nil
 		}
 

@@ -25,6 +25,7 @@ const (
 	StateSelectSourceAddress
 	StateNewAddressInput
 	StateOperationStatus
+	StateCompleted
 	StateError
 )
 
@@ -138,7 +139,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Handle global scroll keys for right pane when it's visible
 		if m.showRightPane {
 			switch msg.String() {
-			case "pgup":
+			case "pgup", "ctrl+u":
 				if m.outputScrollOffset > 0 {
 					m.outputScrollOffset -= 5
 					if m.outputScrollOffset < 0 {
@@ -146,7 +147,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				return m, nil
-			case "pgdn":
+			case "pgdn", "ctrl+d":
 				maxScroll := len(m.outputSummary) - 10 // Approximate visible lines
 				if maxScroll < 0 {
 					maxScroll = 0
@@ -178,8 +179,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateNewAddressInput(msg)
 		case StateOperationStatus:
 			return m.updateOperationStatus(msg)
+		case StateCompleted:
+			return m.updateCompleted(msg)
 		case StateError:
 			return m.updateError(msg)
+		}
+
+	case tea.MouseMsg:
+		// Handle mouse wheel scrolling for right pane when visible
+		if m.showRightPane {
+			switch msg.Type {
+			case tea.MouseWheelUp:
+				if m.outputScrollOffset > 0 {
+					m.outputScrollOffset -= 2 // Scroll up 2 lines
+					if m.outputScrollOffset < 0 {
+						m.outputScrollOffset = 0
+					}
+				}
+				return m, nil
+			case tea.MouseWheelDown:
+				maxScroll := len(m.outputSummary) - 10 // Approximate visible lines
+				if maxScroll < 0 {
+					maxScroll = 0
+				}
+				if m.outputScrollOffset < maxScroll {
+					m.outputScrollOffset += 2 // Scroll down 2 lines
+					if m.outputScrollOffset > maxScroll {
+						m.outputScrollOffset = maxScroll
+					}
+				}
+				return m, nil
+			}
 		}
 
 	case ProcessResult:
@@ -379,7 +409,7 @@ func (m Model) renderOutputSummary() string {
 		
 		// Add scroll indicator if content is scrollable
 		if len(m.outputSummary) > visibleLines {
-			s.WriteString("\n\n" + helpStyle.Render("PgUp/PgDn to scroll"))
+			s.WriteString("\n\n" + helpStyle.Render("PgUp/PgDn, Ctrl+U/D, or mouse wheel to scroll"))
 		}
 	}
 	
@@ -544,6 +574,8 @@ func (m Model) View() string {
 		return m.viewNewAddressInput()
 	case StateOperationStatus:
 		return m.viewOperationStatus()
+	case StateCompleted:
+		return m.viewCompleted()
 	case StateError:
 		return m.viewError()
 	}
@@ -1175,6 +1207,105 @@ func (m Model) viewOperationStatus() string {
 	return m.renderWithDynamicWidth(s.String())
 }
 
+// Completion state handlers
+func (m Model) updateCompleted(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+	case "enter", "esc", " ":
+		// Return to main menu for new analysis
+		m.state = StateMenu
+		// Clear session data for fresh start
+		m.clearOutputSummary()
+		m.addresses = []string{}
+		m.logFile = ""
+		m.fileInput = ""
+		m.addressInput = ""
+		m.showRightPane = false
+	}
+
+	return m, nil
+}
+
+func (m Model) viewCompleted() string {
+	var s strings.Builder
+
+	// Responsive header based on terminal width
+	if m.width >= 60 {
+		// Full-width header for larger terminals
+		headerBox := `
+╔════════════════════════════════════════════════════════╗
+║                                                        ║
+║                       THANK YOU!                       ║
+║                                                        ║
+║                ALL OPERATIONS COMPLETED!               ║
+║                                                        ║
+╚════════════════════════════════════════════════════════╝`
+		s.WriteString(successStyle.Render(headerBox))
+	} else if m.width >= 45 {
+		// Compact header for medium terminals
+		compactHeader := `
+╔═══════════════════════════════════════╗
+║                                       ║
+║               THANK YOU!              ║
+║                                       ║
+║          OPERATIONS COMPLETED!        ║
+║                                       ║
+╚═══════════════════════════════════════╝`
+		s.WriteString(successStyle.Render(compactHeader))
+	} else {
+		// Minimal header for very small terminals
+		minimalHeader := `
+┌─────────────────────────────┐
+│                             │
+│         THANK YOU!          │
+│                             │
+│     OPERATIONS COMPLETE!    │
+│                             │
+└─────────────────────────────┘`
+		s.WriteString(successStyle.Render(minimalHeader))
+	}
+	
+	s.WriteString("\n\n")
+
+	// Main title
+	summaryMsg := titleStyle.Render("🚀 Analysis Complete!")
+	s.WriteString(summaryMsg + "\n\n")
+
+	// Stats summary
+	totalFiles := len(m.lastFilesGenerated)
+	if totalFiles > 0 {
+		statsMsg := fmt.Sprintf("✨ Generated %d output files in the outputs/ directory", totalFiles)
+		s.WriteString(successStyle.Render(statsMsg) + "\n")
+	}
+
+	if len(m.addresses) > 0 {
+		addressMsg := fmt.Sprintf("🎯 Analyzed %d address object(s): %s", len(m.addresses), strings.Join(m.addresses, ", "))
+		s.WriteString(highlightStyle.Render(addressMsg) + "\n")
+	}
+
+	if m.logFile != "" {
+		fileMsg := fmt.Sprintf("📄 Configuration file: %s", m.logFile)
+		s.WriteString(sessionStatusStyle.Render(fileMsg) + "\n\n")
+	}
+
+	// Thank you message
+	thankYouMsg := `Thank you for using the PAN Configuration Log Parser!
+
+Your analysis results have been saved and are ready for review.
+All configuration dependencies, address groups, and security rules 
+have been thoroughly analyzed and documented.
+
+Happy network administration! 🌐`
+
+	s.WriteString(helpStyle.Render(thankYouMsg) + "\n\n")
+
+	// Action prompt
+	s.WriteString(highlightStyle.Render("Press Enter to start a new analysis, or q to quit"))
+
+	return m.renderWithDynamicWidth(s.String())
+}
+
 // Error state handlers
 func (m Model) updateError(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
@@ -1427,7 +1558,7 @@ func (m Model) showComprehensiveAnalysisSummary() (Model, tea.Cmd) {
 				m.lastOperationSummary = summaryBuilder.String()
 				m.lastFilesGenerated = allFiles
 				m.operationMessage = "Analysis completed successfully!"
-				m.state = StateOperationStatus
+				m.state = StateCompleted
 				return m, nil
 			}
 		}
@@ -1437,7 +1568,7 @@ func (m Model) showComprehensiveAnalysisSummary() (Model, tea.Cmd) {
 	m.lastOperationType = "Analysis Summary"
 	m.lastOperationSummary = "Analysis completed - see result files for details"
 	m.operationMessage = "Analysis completed successfully!"
-	m.state = StateOperationStatus
+	m.state = StateCompleted
 	return m, nil
 }
 
