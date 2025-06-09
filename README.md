@@ -70,22 +70,32 @@ set device-group DG-Production address web-server-01 ip-netmask 192.168.1.10/32
 - **Space** - Toggle selection (checkboxes)
 - **Enter** - Confirm selection or execute action
 - **Esc** - Go back to previous screen
+- **PgUp/PgDn, Ctrl+U/D** - Scroll session summary pane
+- **Mouse Wheel** - Scroll session summary when visible
 - **Ctrl+C / q** - Quit application
 
 ### Key Features
-- **9-state machine** with comprehensive navigation
+- **10-state machine** with comprehensive navigation and completion screen
 - **Multi-select operations** for post-analysis actions
 - **Professional styling** with clean color scheme
 - **Silent background processing** maintains clean display
 - **Real-time feedback** with progress indicators
 - **Enhanced session summary** with intelligent color-coding and visual hierarchy
+- **Responsive completion screen** that adapts to any terminal size
 
 ### Session Summary Display
 - **Color-coded status**: Yellow for input files/targets, green for success metrics, red for errors
 - **Smart formatting**: Action descriptions in blue italic, status values intelligently colored
 - **Count-based display**: Clean redundant address counts instead of long lists
 - **Structured hierarchy**: Indented sub-items and formatted address mappings
+- **Enhanced scrolling**: Mouse wheel support, PgUp/PgDn, Ctrl+U/D keyboard shortcuts
 - **Scrollable history**: Full session tracking with pagination support
+
+### Completion Experience
+- **Celebratory finish**: Professional thank you screen with analysis statistics
+- **Terminal adaptive**: Three responsive layouts for different window sizes (60+, 45+, <45 chars)
+- **Clean workflow**: All operations end with polished completion screen
+- **Easy restart**: Seamless transition to start new analysis or quit application
 
 ## Output Format
 
