@@ -337,7 +337,7 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 			}
 		}
 
-		outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", address, newAddressName)
+		outputFile := fmt.Sprintf("%s_copyto_%s.yml", address, newAddressName)
 
 		// Generate commands
 		var commands []string
@@ -430,7 +430,7 @@ func generateSequentialAddressGroupCommands(proc *processor.PANLogProcessor, add
 				continue // Skip addresses with no groups
 			}
 
-			outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", sourceAddress, newAddress)
+			outputFile := fmt.Sprintf("%s_copyto_%s.yml", sourceAddress, newAddress)
 
 			// Generate commands
 			var commands []string
@@ -489,7 +489,7 @@ func generateAddressGroupCmdWithNameAndIP(proc *processor.PANLogProcessor, addre
 			}
 		}
 
-		outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", address, newAddressName)
+		outputFile := fmt.Sprintf("%s_copyto_%s.yml", address, newAddressName)
 
 		// Generate commands
 		var commands []string
@@ -546,7 +546,7 @@ func generateSequentialAddressGroupCommandsWithIP(proc *processor.PANLogProcesso
 				continue
 			}
 
-			outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", sourceAddress, newAddress)
+			outputFile := fmt.Sprintf("%s_copyto_%s.yml", sourceAddress, newAddress)
 
 			// Generate commands
 			var commands []string
@@ -634,7 +634,7 @@ func generateSequentialAddressGroupCommandsWithMappings(proc *processor.PANLogPr
 				continue
 			}
 
-			outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", sourceAddress, newAddress)
+			outputFile := fmt.Sprintf("%s_copyto_%s.yml", sourceAddress, newAddress)
 
 			// Generate commands
 			var commands []string

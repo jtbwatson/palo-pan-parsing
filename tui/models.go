@@ -1246,9 +1246,7 @@ func (m Model) viewCompleted() string {
 		headerBox := `
 ╔════════════════════════════════════════════════════════╗
 ║                                                        ║
-║                       THANK YOU!                       ║
-║                                                        ║
-║                ALL OPERATIONS COMPLETED!               ║
+║                ALL OPERATIONS COMPLETED                ║
 ║                                                        ║
 ╚════════════════════════════════════════════════════════╝`
 		s.WriteString(successStyle.Render(headerBox))
@@ -1257,9 +1255,7 @@ func (m Model) viewCompleted() string {
 		compactHeader := `
 ╔═══════════════════════════════════════╗
 ║                                       ║
-║               THANK YOU!              ║
-║                                       ║
-║          OPERATIONS COMPLETED!        ║
+║        OPERATIONS COMPLETED           ║
 ║                                       ║
 ╚═══════════════════════════════════════╝`
 		s.WriteString(successStyle.Render(compactHeader))
@@ -1268,9 +1264,7 @@ func (m Model) viewCompleted() string {
 		minimalHeader := `
 ┌─────────────────────────────┐
 │                             │
-│         THANK YOU!          │
-│                             │
-│     OPERATIONS COMPLETE!    │
+│     OPERATIONS COMPLETE     │
 │                             │
 └─────────────────────────────┘`
 		s.WriteString(successStyle.Render(minimalHeader))
@@ -1279,7 +1273,7 @@ func (m Model) viewCompleted() string {
 	s.WriteString("\n\n")
 
 	// Main title
-	summaryMsg := titleStyle.Render("🚀 Analysis Complete!")
+	summaryMsg := titleStyle.Render("Analysis Complete")
 	s.WriteString(summaryMsg + "\n\n")
 
 	// Stats summary
@@ -1289,30 +1283,27 @@ func (m Model) viewCompleted() string {
 		if totalFiles == 1 {
 			fileWord = "file"
 		}
-		statsMsg := fmt.Sprintf("✨ Generated %d output %s in the outputs/ directory", totalFiles, fileWord)
+		statsMsg := fmt.Sprintf("Generated %d output %s in the outputs/ directory", totalFiles, fileWord)
 		s.WriteString(successStyle.Render(statsMsg) + "\n")
+		
+		// List all generated files
+		for _, file := range m.lastFilesGenerated {
+			// Show just the filename without redundant outputs/ prefix
+			cleanFile := strings.TrimPrefix(file, "outputs/")
+			s.WriteString("  • " + cleanFile + "\n")
+		}
+		s.WriteString("\n")
 	}
 
 	if len(m.addresses) > 0 {
-		addressMsg := fmt.Sprintf("🎯 Analyzed %d address object(s): %s", len(m.addresses), strings.Join(m.addresses, ", "))
+		addressMsg := fmt.Sprintf("Analyzed %d address object(s): %s", len(m.addresses), strings.Join(m.addresses, ", "))
 		s.WriteString(highlightStyle.Render(addressMsg) + "\n")
 	}
 
 	if m.logFile != "" {
-		fileMsg := fmt.Sprintf("📄 Configuration file: %s", m.logFile)
+		fileMsg := fmt.Sprintf("Configuration file: %s", m.logFile)
 		s.WriteString(sessionStatusStyle.Render(fileMsg) + "\n\n")
 	}
-
-	// Thank you message
-	thankYouMsg := `Thank you for using the PAN Configuration Log Parser!
-
-Your analysis results have been saved and are ready for review.
-All configuration dependencies, address groups, and security rules 
-have been thoroughly analyzed and documented.
-
-Happy network administration! 🌐`
-
-	s.WriteString(helpStyle.Render(thankYouMsg) + "\n\n")
 
 	// Action prompt
 	s.WriteString(highlightStyle.Render("Press Enter to start a new analysis, or q to quit"))
