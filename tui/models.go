@@ -678,7 +678,7 @@ func (m Model) updateFileInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		m.clearOutputSummary()
 		m.addFormattedAction("Configuration Analysis Started")
-		m.addFormattedStatus("File", m.logFile)
+		m.addFormattedStatusIndented("File", m.logFile)
 		m.state = StateAddressInput
 	case "backspace":
 		if len(m.fileInput) > 0 {
@@ -738,7 +738,7 @@ func (m Model) updateAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if len(m.addresses) > 0 {
 				// Add to output summary
 				m.addFormattedAction("Processing Started")
-				m.addFormattedStatus("Targets", strings.Join(m.addresses, ", "))
+				m.addFormattedStatusIndented("Targets", strings.Join(m.addresses, ", "))
 
 				// Start processing
 				m.state = StateProcessing

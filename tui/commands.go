@@ -261,7 +261,7 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 
 		// Add to output summary
 		m.addFormattedAction("Analysis Complete")
-		m.addFormattedStatus("Addresses", strings.Join(result.Addresses, ", "))
+		m.addFormattedStatusIndented("Addresses", strings.Join(result.Addresses, ", "))
 
 		// Count total matches
 		totalMatches := 0
@@ -272,18 +272,18 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 				}
 			}
 		}
-		m.addFormattedStatus("Total References", fmt.Sprintf("%d", totalMatches))
+		m.addFormattedStatusIndented("Total References", fmt.Sprintf("%d", totalMatches))
 
 		if result.HasAddressGroups {
-			m.addFormattedStatus("Address Groups", "Found")
+			m.addFormattedStatusIndented("Address Groups", "Found")
 		}
 		if result.HasRedundantAddrs {
-			m.addFormattedStatus("Redundant Addresses", "Found")
+			m.addFormattedStatusIndented("Redundant Addresses", "Found")
 		}
 		
 		// Show files generated count
 		if len(result.FilesGenerated) > 0 {
-			m.addFormattedStatus("Files Generated", fmt.Sprintf("%d", len(result.FilesGenerated)))
+			m.addFormattedStatusIndented("Files Generated", fmt.Sprintf("%d", len(result.FilesGenerated)))
 		}
 
 		// Set up post-analysis choices with separators for execution
