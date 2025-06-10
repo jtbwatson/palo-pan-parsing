@@ -40,6 +40,25 @@ func WriteResults(outputFile, addressName string, matchingLines []string, itemsD
 	fmt.Fprintf(file, "# Total Relationships: %d\n", totalRelationships)
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
 
+	// Generic process explanation section
+	fmt.Fprintf(file, "# PAN CONFIGURATION ANALYSIS PROCESS\n")
+	fmt.Fprintf(file, "Overview of how the address object analysis works:\n")
+	fmt.Fprintf(file, "---\n")
+	fmt.Fprintf(file, "1. CONFIGURATION PARSING: Tool loads and parses the entire PAN configuration file\n")
+	fmt.Fprintf(file, "2. PATTERN MATCHING: Searches for all references to the target address object using:\n")
+	fmt.Fprintf(file, "   - Direct name matching in configuration lines\n")
+	fmt.Fprintf(file, "   - Regex patterns for different PAN configuration contexts\n")
+	fmt.Fprintf(file, "3. RELATIONSHIP DISCOVERY: Identifies how the address is used in:\n")
+	fmt.Fprintf(file, "   - Device Groups (scope and hierarchy)\n")
+	fmt.Fprintf(file, "   - Security Rules (direct source/destination references)\n")
+	fmt.Fprintf(file, "   - Address Groups (static membership)\n")
+	fmt.Fprintf(file, "   - NAT Rules (translation policies)\n")
+	fmt.Fprintf(file, "   - Service Groups (if applicable)\n")
+	fmt.Fprintf(file, "4. INDIRECT ANALYSIS: Traces indirect references through address groups\n")
+	fmt.Fprintf(file, "5. REDUNDANCY DETECTION: Identifies duplicate addresses with same IP/netmask\n")
+	fmt.Fprintf(file, "6. STRUCTURED REPORTING: Organizes findings into categorized sections\n")
+	fmt.Fprintf(file, "---\n\n")
+
 	// Matching configuration lines section
 	fmt.Fprintf(file, "# MATCHING CONFIGURATION LINES\n")
 	fmt.Fprintf(file, "Found [%d] lines containing '%s':\n", len(matchingLines), addressName)
@@ -283,6 +302,32 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName, ipAd
 	fmt.Fprintf(file, "# Commands Generated: %d\n", len(commands))
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
 
+	// Generic process explanation section
+	fmt.Fprintf(file, "# ADDRESS GROUP COMMAND GENERATION PROCESS\n")
+	fmt.Fprintf(file, "Overview of how address group commands are generated:\n")
+	fmt.Fprintf(file, "---\n")
+	fmt.Fprintf(file, "1. ADDRESS ANALYSIS: Tool searches for all address groups containing the original address\n")
+	fmt.Fprintf(file, "2. SCOPE DISCOVERY: Identifies which scopes (shared/device-group) the groups exist in\n")
+	fmt.Fprintf(file, "3. SMART SCOPE SELECTION: Determines optimal scope for creating new address object:\n")
+	fmt.Fprintf(file, "   - If ANY groups are in shared scope → create address in shared scope\n")
+	fmt.Fprintf(file, "   - If ALL groups are in same device-group → create address in that device-group\n")
+	fmt.Fprintf(file, "   - If groups span multiple device-groups → create address in shared scope\n")
+	fmt.Fprintf(file, "4. COMMAND GENERATION: Creates two types of commands:\n")
+	fmt.Fprintf(file, "   - Address object creation commands (STEP 1)\n")
+	fmt.Fprintf(file, "   - Address group membership commands (STEP 2)\n")
+	fmt.Fprintf(file, "5. EFFICIENCY OPTIMIZATION: Minimizes command count and maximizes reusability\n")
+	fmt.Fprintf(file, "---\n\n")
+
+	// Usage instructions section (moved before source groups)
+	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
+	fmt.Fprintf(file, "Found [4] steps for applying address group commands:\n")
+	fmt.Fprintf(file, "---\n")
+	fmt.Fprintf(file, "1. REVIEW: Verify the IP address and new address name meet your requirements\n")
+	fmt.Fprintf(file, "2. COPY COMMANDS: Copy all commands from the 'GENERATED CONFIGURATION COMMANDS' section\n")
+	fmt.Fprintf(file, "3. EXECUTE IN ORDER: Paste commands into PAN interface/CLI in the order shown (STEP 1 first)\n")
+	fmt.Fprintf(file, "4. COMMIT: Apply changes to activate the new address objects and group memberships\n")
+	fmt.Fprintf(file, "---\n\n")
+
 	// Address groups details section in results.yml style
 	fmt.Fprintf(file, "# SOURCE ADDRESS GROUPS\n")
 	fmt.Fprintf(file, "Found [%d] address group", len(addressGroups))
@@ -315,17 +360,7 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName, ipAd
 	addressCreationCommands := generateAddressCreationCommands(newAddressName, ipAddress, addressGroups)
 	totalCommands := len(addressCreationCommands) + len(commands)
 
-	// Usage instructions section in results.yml style
-	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
-	fmt.Fprintf(file, "Found [4] steps for applying address group commands:\n")
-	fmt.Fprintf(file, "---\n")
-	fmt.Fprintf(file, "1. Review and customize the address object creation commands below\n")
-	fmt.Fprintf(file, "2. Copy all commands from the 'GENERATED CONFIGURATION COMMANDS' section\n")
-	fmt.Fprintf(file, "3. Paste them into your PAN configuration interface or CLI in the order shown\n")
-	fmt.Fprintf(file, "4. Commit the changes to apply the new address objects and group memberships\n")
-	fmt.Fprintf(file, "---\n")
-
-	// Commands section in results.yml style (moved after usage instructions)
+	// Commands section in results.yml style
 	fmt.Fprintf(file, "# GENERATED CONFIGURATION COMMANDS\n")
 	fmt.Fprintf(file, "Found [%d] total command", totalCommands)
 	if totalCommands != 1 {
@@ -394,6 +429,38 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 	fmt.Fprintf(file, "# WARNING: Test in non-production environment first!\n")
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
 
+	// Generic process explanation section
+	fmt.Fprintf(file, "# REDUNDANT ADDRESS CLEANUP PROCESS\n")
+	fmt.Fprintf(file, "Overview of how redundant address cleanup works:\n")
+	fmt.Fprintf(file, "---\n")
+	fmt.Fprintf(file, "1. ANALYSIS: The tool identifies addresses with identical IP/netmask values\n")
+	fmt.Fprintf(file, "2. TARGET SELECTION: One address is chosen as the 'target' to keep (usually most used)\n")
+	fmt.Fprintf(file, "3. DEPENDENCY MAPPING: All references to redundant addresses are found in:\n")
+	fmt.Fprintf(file, "   - Address Groups (static membership lists)\n")
+	fmt.Fprintf(file, "   - Security Rules (source/destination/user fields)\n")
+	fmt.Fprintf(file, "   - NAT Rules (source/destination translation fields)\n")
+	fmt.Fprintf(file, "4. SCOPE OPTIMIZATION: Target address scope is promoted if needed:\n")
+	fmt.Fprintf(file, "   - If redundant addresses exist across multiple device-groups\n")
+	fmt.Fprintf(file, "   - Target is promoted to 'shared' scope for universal access\n")
+	fmt.Fprintf(file, "5. SAFE REPLACEMENT: All references are updated to use target address\n")
+	fmt.Fprintf(file, "6. CLEANUP: Redundant address definitions are removed (done LAST)\n")
+	fmt.Fprintf(file, "---\n\n")
+
+	// Usage instructions section (moved before steps)
+	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
+	fmt.Fprintf(file, "Found [5] critical steps for safe cleanup execution:\n")
+	fmt.Fprintf(file, "---\n")
+	if commands.TotalCommands == 0 {
+		fmt.Fprintf(file, "No cleanup commands generated - redundant addresses may not be in active use\n")
+	} else {
+		fmt.Fprintf(file, "1. BACKUP: Save current configuration before making any changes\n")
+		fmt.Fprintf(file, "2. TEST ENVIRONMENT: Execute ALL commands in non-production environment first\n")
+		fmt.Fprintf(file, "3. EXECUTE IN ORDER: Run cleanup steps in the exact order shown below\n")
+		fmt.Fprintf(file, "4. DEFINITIONS LAST: Always delete address definitions LAST to avoid broken references\n")
+		fmt.Fprintf(file, "5. COMMIT & VERIFY: Commit changes and verify no policy compilation errors\n")
+	}
+	fmt.Fprintf(file, "---\n\n")
+
 	// Group commands by section
 	commandsBySection := make(map[string][]models.CleanupCommand)
 	for _, command := range commands.Commands {
@@ -445,17 +512,6 @@ func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) e
 		stepNum++
 	}
 
-	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
-	fmt.Fprintf(file, "---\n")
-	if commands.TotalCommands == 0 {
-		fmt.Fprintf(file, "No cleanup commands generated - redundant address may not be in use\n")
-	} else {
-		fmt.Fprintf(file, "1. Execute cleanup steps in the order shown above\n")
-		fmt.Fprintf(file, "2. Remove definitions (delete commands) LAST to avoid breaking references\n")
-		fmt.Fprintf(file, "3. Test all commands in non-production environment first\n")
-		fmt.Fprintf(file, "4. Backup configuration before making changes\n")
-		fmt.Fprintf(file, "---\n")
-	}
 
 	// Write actual commands at the bottom in results.yml style
 	stepNum = 1
