@@ -895,7 +895,17 @@ func (m Model) updatePostAnalysis(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		choice := m.postAnalysisChoices[m.cursor]
 		// Only allow selection of operation choices, not separators or action items
 		if choice == "Generate Address Group Commands" || choice == "Generate Cleanup Commands" {
+			// Toggle current selection
 			m.postAnalysisSelected[m.cursor] = !m.postAnalysisSelected[m.cursor]
+			
+			// Implement mutual exclusion - if this operation is now selected, deselect the other
+			if m.postAnalysisSelected[m.cursor] {
+				for i, otherChoice := range m.postAnalysisChoices {
+					if i != m.cursor && (otherChoice == "Generate Address Group Commands" || otherChoice == "Generate Cleanup Commands") {
+						m.postAnalysisSelected[i] = false
+					}
+				}
+			}
 		}
 	case "enter":
 		choice := m.postAnalysisChoices[m.cursor]
