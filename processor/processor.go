@@ -17,7 +17,7 @@ import (
 type PANLogProcessor struct {
 	Results          map[string]*models.AddressResult
 	Patterns         *models.Patterns
-	Silent           bool // If true, suppress all output
+	Silent           bool                  // If true, suppress all output
 	ProgressCallback func(float64, string) // Callback for progress updates
 }
 
@@ -151,7 +151,7 @@ func (p *PANLogProcessor) ProcessFileSinglePass(filePath string, addresses []str
 			percentage := progress * 100
 			message := fmt.Sprintf("Processing line %s/%s (%.0f%%)",
 				utils.FormatNumber(lineNum), utils.FormatNumber(totalLines), percentage)
-			
+
 			// Call progress callback if available
 			if p.ProgressCallback != nil {
 				p.ProgressCallback(progress, message)

@@ -12,6 +12,7 @@ Parses PAN configuration exports to help network administrators understand how I
 - **Device Group Context**: Which device groups contain rules using the address
 - **Redundant Address Detection**: Finds other address objects with the same IP/netmask
 - **Nested Address Groups**: Analyzes complex address group hierarchies
+- **Smart Command Generation**: Creates optimized PAN CLI commands for adding new addresses to existing groups with intelligent scope selection
 
 ## Installation
 
@@ -147,6 +148,39 @@ make run         # Build and run (TUI mode)
 make verbose     # Build and run (verbose mode)
 make clean       # Remove build artifacts
 ```
+
+## Enhanced Address Group Command Generation
+
+The tool now includes advanced command generation for adding new address objects to existing address groups with intelligent scope optimization:
+
+### Smart Scope Selection
+- **Automatic Optimization**: Determines the most efficient scope for creating new address objects
+- **Mixed Scope Logic**: When groups exist in both shared and device-group scopes, creates address object in shared scope for maximum efficiency
+- **Device-Group Isolation**: When all groups are in a single device-group, creates address object there for proper scope isolation  
+- **Multi-Group Efficiency**: When groups span multiple device-groups, uses shared scope to avoid duplication
+
+### Complete Command Generation
+- **Two-Step Process**: Generates both address object creation AND group membership commands
+- **IP Address Input**: Prompts for actual IP addresses instead of using placeholders
+- **Executable Commands**: Ready-to-use PAN CLI commands in proper execution order
+
+### Example Output
+```yaml
+# STEP 1: Create Address Objects (1 commands)
+# NOTE: Using provided IP address 192.168.45.2
+set shared address newServer ip-netmask 192.168.45.2
+---
+# STEP 2: Add to Address Groups (3 commands)  
+set shared address-group web-servers static newServer
+set shared address-group all-servers static newServer
+set device-group production address-group local-servers static newServer
+```
+
+### Benefits
+- **Reduced Commands**: Smart scope selection eliminates redundant address object creation (often 50%+ fewer commands)
+- **User-Specified IPs**: No manual editing required - uses actual IP addresses provided by user
+- **Best Practices**: Follows PAN configuration best practices for scope management
+- **Ready to Execute**: Generated commands can be directly pasted into PAN CLI or GUI
 
 ## Dependencies
 

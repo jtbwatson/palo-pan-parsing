@@ -64,7 +64,7 @@ make build
   - `display.go`: Color formatting and output display functions
   - `interactive.go`: Classic interactive mode implementation with guided user experience
 - **Utils Package (`utils/`)**: Utility functions and file operations
-  - `utils.go`: Formatting, parsing, and system utilities
+  - `utils.go`: Formatting, parsing, system utilities, and comprehensive IP address validation
   - `writer.go`: Structured YAML output generation and file writing
 - **Build System**: Makefile-based build system with dependency checking and global installation support
 
@@ -241,3 +241,49 @@ The cleanup commands are organized into logical steps:
 - **User Confirmation**: Prompts user before generating cleanup commands
 - **Analysis Summary**: Shows impact analysis including number of device groups affected
 - **Safety Warnings**: Reminds users to test in non-production environments first
+
+## Enhanced Address Group Command Generation
+
+The tool includes advanced address group command generation with intelligent scope optimization and comprehensive IP address management:
+
+### Smart Scope Selection
+- **Intelligent Scope Analysis**: Automatically determines the optimal scope for creating new address objects based on group memberships
+- **Mixed Scope Optimization**: When groups exist in both shared and device-group scopes, creates address object in shared scope for maximum efficiency
+- **Single Device-Group Isolation**: When all groups are in the same device-group, creates address object in that device-group for proper scope isolation
+- **Multi Device-Group Efficiency**: When groups span multiple device-groups, creates address object in shared scope to avoid duplication
+
+### Comprehensive IP Address Management
+- **User-Specified IP Addresses**: Both TUI and interactive modes prompt for IP addresses instead of using placeholder values
+- **Complete Command Generation**: Generates both address object creation commands AND group membership commands in proper execution order
+- **Custom IP Validation**: Supports user-provided IP addresses with CIDR notation (e.g., 192.168.1.100/32)
+
+### Enhanced TUI Workflow
+- **Extended State Machine**: Added dedicated IP address input state (`StateIPAddressInput`) after new address name input
+- **Progressive Input Flow**: 
+  1. Address analysis and group discovery
+  2. New address name input with validation
+  3. IP address input with format guidance (e.g., 192.168.1.100/32)
+  4. Smart scope analysis and command generation
+- **Real-time Feedback**: Shows current address being processed and progress through multiple address mappings
+
+### Optimized Output Format
+The enhanced command generation produces two-step executable commands:
+1. **STEP 1: Create Address Objects** - Generates commands to create address objects in optimal scopes with user-specified IP addresses
+2. **STEP 2: Add to Address Groups** - Generates commands to add new addresses to discovered groups
+
+### Smart Scope Examples
+- **Shared + Device-Group Groups**: `set shared address newServer ip-netmask 10.0.1.100/32` (1 command vs 2+ previously)
+- **Single Device-Group Only**: `set device-group production address newServer ip-netmask 10.0.1.100/32` (proper isolation)
+- **Multiple Device-Groups**: `set shared address newServer ip-netmask 10.0.1.100/32` (efficiency over duplication)
+
+### Interactive Mode Enhancements
+- **IP Address Prompts**: Added comprehensive validation and user-friendly prompts for IP address input with support for IPv4/IPv6 and CIDR notation
+- **Progress Feedback**: Shows address mapping with IP information (e.g., "newServer1 (10.0.1.100/32)")
+- **Enhanced Error Handling**: Real-time IP address validation with automatic CIDR normalization and clear error messages
+- **Per-Address IP Mapping**: Each source address gets its own unique IP address in multi-address workflows
+
+### Technical Implementation
+- **utils/writer.go**: Smart scope selection logic in `generateAddressCreationCommands()` function
+- **tui/models.go**: Extended state machine with IP address input state and validation
+- **tui/commands.go**: Enhanced command generation functions with IP address parameter support
+- **ui/interactive.go**: Updated interactive prompts with IP address collection and validation

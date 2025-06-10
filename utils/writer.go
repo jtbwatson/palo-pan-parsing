@@ -215,8 +215,47 @@ func writeRedundantAddressesCategory(file *os.File, addresses []models.Redundant
 	fmt.Fprintf(file, "---\n")
 }
 
+// generateAddressCreationCommands generates commands to create address objects using smart scope selection
+func generateAddressCreationCommands(newAddressName, ipAddress string, addressGroups []models.AddressGroup) []string {
+	var commands []string
+	hasSharedGroups := false
+	deviceGroups := make(map[string]bool)
+
+	// Analyze group scopes to determine optimal address object placement
+	for _, group := range addressGroups {
+		if group.Context == "shared" {
+			hasSharedGroups = true
+		} else if group.Context == "device-group" {
+			deviceGroups[group.DeviceGroup] = true
+		}
+	}
+
+	// Smart scope selection logic:
+	// 1. If ANY groups are shared scope -> create in shared scope (most efficient)
+	// 2. If ALL groups are in same device-group -> create in that device-group
+	// 3. If groups span multiple device-groups -> create in shared scope for efficiency
+
+	if hasSharedGroups || len(deviceGroups) > 1 {
+		// Create in shared scope - can be referenced by any device-group
+		commands = append(commands, fmt.Sprintf("set shared address %s ip-netmask %s", newAddressName, ipAddress))
+	} else if len(deviceGroups) == 1 {
+		// All groups are in same device-group - create there for scope isolation
+		for deviceGroup := range deviceGroups {
+			commands = append(commands, fmt.Sprintf("set device-group %s address %s ip-netmask %s", deviceGroup, newAddressName, ipAddress))
+			break // Only one device group
+		}
+	}
+
+	return commands
+}
+
+// GenerateAddressCreationCommandsTest is a test helper function to verify smart scope logic
+func GenerateAddressCreationCommandsTest(newAddressName, ipAddress string, addressGroups []models.AddressGroup) []string {
+	return generateAddressCreationCommands(newAddressName, ipAddress, addressGroups)
+}
+
 // WriteAddressGroupCommands writes generated commands to a YAML file
-func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName string, commands []string, addressGroups []models.AddressGroup) error {
+func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName, ipAddress string, commands []string, addressGroups []models.AddressGroup) error {
 	// Ensure outputs directory exists
 	if err := EnsureOutputsDir(); err != nil {
 		return fmt.Errorf("error creating outputs directory: %w", err)
@@ -239,6 +278,7 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
 	fmt.Fprintf(file, "# Original Address Object: %s\n", originalAddress)
 	fmt.Fprintf(file, "# New Address Object: %s\n", newAddressName)
+	fmt.Fprintf(file, "# IP Address: %s\n", ipAddress)
 	fmt.Fprintf(file, "# Address Groups Found: %d\n", len(addressGroups))
 	fmt.Fprintf(file, "# Commands Generated: %d\n", len(commands))
 	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
@@ -271,30 +311,47 @@ func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName strin
 	}
 	fmt.Fprintf(file, "---\n")
 
+	// Generate address object creation commands based on group scopes
+	addressCreationCommands := generateAddressCreationCommands(newAddressName, ipAddress, addressGroups)
+	totalCommands := len(addressCreationCommands) + len(commands)
+
 	// Usage instructions section in results.yml style
 	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
 	fmt.Fprintf(file, "Found [4] steps for applying address group commands:\n")
 	fmt.Fprintf(file, "---\n")
-	fmt.Fprintf(file, "1. Create the new address object '%s' with appropriate IP/FQDN configuration\n", newAddressName)
-	fmt.Fprintf(file, "2. Copy the commands from the 'GENERATED CONFIGURATION COMMANDS' section below\n")
-	fmt.Fprintf(file, "3. Paste them into your PAN configuration interface or CLI\n")
-	fmt.Fprintf(file, "4. Commit the changes to apply the new address group memberships\n")
+	fmt.Fprintf(file, "1. Review and customize the address object creation commands below\n")
+	fmt.Fprintf(file, "2. Copy all commands from the 'GENERATED CONFIGURATION COMMANDS' section\n")
+	fmt.Fprintf(file, "3. Paste them into your PAN configuration interface or CLI in the order shown\n")
+	fmt.Fprintf(file, "4. Commit the changes to apply the new address objects and group memberships\n")
 	fmt.Fprintf(file, "---\n")
 
 	// Commands section in results.yml style (moved after usage instructions)
 	fmt.Fprintf(file, "# GENERATED CONFIGURATION COMMANDS\n")
-	fmt.Fprintf(file, "Found [%d] command", len(commands))
-	if len(commands) != 1 {
+	fmt.Fprintf(file, "Found [%d] total command", totalCommands)
+	if totalCommands != 1 {
 		fmt.Fprintf(file, "s")
 	}
-	fmt.Fprintf(file, " to add '%s' to same address groups as '%s':\n", newAddressName, originalAddress)
+	fmt.Fprintf(file, " for complete '%s' setup and group membership:\n", newAddressName)
 	fmt.Fprintf(file, "---\n")
 
+	// Step 1: Address object creation commands
+	if len(addressCreationCommands) > 0 {
+		fmt.Fprintf(file, "# STEP 1: Create Address Objects (%d commands)\n", len(addressCreationCommands))
+		fmt.Fprintf(file, "# NOTE: Using provided IP address %s\n", ipAddress)
+		for _, command := range addressCreationCommands {
+			fmt.Fprintf(file, "%s\n", command)
+		}
+		fmt.Fprintf(file, "---\n")
+	}
+
+	// Step 2: Address group membership commands
 	if len(commands) > 0 {
+		fmt.Fprintf(file, "# STEP 2: Add to Address Groups (%d commands)\n", len(commands))
 		for _, command := range commands {
 			fmt.Fprintf(file, "%s\n", command)
 		}
 	} else {
+		fmt.Fprintf(file, "# STEP 2: Add to Address Groups\n")
 		fmt.Fprintf(file, "None generated\n")
 	}
 	fmt.Fprintf(file, "---\n")

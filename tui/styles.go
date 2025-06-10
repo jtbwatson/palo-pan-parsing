@@ -7,11 +7,11 @@ var (
 	primaryColor   = lipgloss.Color("#347aeb") // Blue
 	secondaryColor = lipgloss.Color("#636363") // Gray
 	// accentColor    = lipgloss.Color("#06B6D4")  // Cyan (unused, kept for future use)
-	successColor = lipgloss.Color("#69d194") // Light Green
-	warningColor = lipgloss.Color("#F5E6A8") // Pale Yellow
-	errorColor   = lipgloss.Color("#f54242") // Red
-	mutedColor   = lipgloss.Color("#636363") // Gray
-	textColor    = lipgloss.Color("#FFFDF5") // White
+	successColor   = lipgloss.Color("#69d194") // Light Green
+	warningColor   = lipgloss.Color("#F5E6A8") // Pale Yellow
+	errorColor     = lipgloss.Color("#f54242") // Red
+	mutedColor     = lipgloss.Color("#636363") // Gray
+	textColor      = lipgloss.Color("#FFFDF5") // White
 	inputTextColor = lipgloss.Color("#F5E6A8") // Pale Yellow
 
 	// Base styles

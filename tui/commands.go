@@ -22,12 +22,12 @@ type ProcessResult struct {
 	Processor           *processor.PANLogProcessor
 	ConfigFile          string
 	OperationComplete   bool // Flag to indicate operation completed, stay in post-analysis
-	
+
 	// Operation summary details
-	OperationType     string            // e.g., "Address Group Commands", "Cleanup Commands"
-	OperationSummary  string            // Detailed description of what was done
-	FilesGenerated    []string          // List of output files created
-	AddressMappings   map[string]string // Source -> Target address mappings (for address group operations)
+	OperationType    string            // e.g., "Address Group Commands", "Cleanup Commands"
+	OperationSummary string            // Detailed description of what was done
+	FilesGenerated   []string          // List of output files created
+	AddressMappings  map[string]string // Source -> Target address mappings (for address group operations)
 }
 
 // ProcessProgressMsg represents progress updates during processing
@@ -41,9 +41,9 @@ type ProgressPollMsg struct{}
 
 // Global progress state
 var (
-	progressMutex   sync.RWMutex
-	currentProgress float64
-	processingDone  bool
+	progressMutex    sync.RWMutex
+	currentProgress  float64
+	processingDone   bool
 	processingResult *ProcessResult
 )
 
@@ -93,7 +93,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 	return func() tea.Msg {
 		// Reset progress state
 		resetProcessingState()
-		
+
 		// Start processing in a goroutine
 		go func() {
 			// Create processor in silent mode for TUI
@@ -158,7 +158,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 				ConfigFile:          logFile,
 			})
 		}()
-		
+
 		// Start polling for progress updates
 		return ProgressPollMsg{}
 	}
@@ -177,10 +177,10 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 			m.lastAddressMappings = result.AddressMappings
 			m.lastAddresses = result.Addresses
 			m.lastConfigFile = result.ConfigFile
-			
+
 			// ALWAYS add to session summary (this should persist across operations)
 			m.addFormattedAction(result.OperationType + " Complete")
-			
+
 			// Handle different operation types in session summary
 			if result.OperationType == "Cleanup Commands" {
 				// Extract cleanup-specific information from summary
@@ -205,11 +205,11 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 					}
 				}
 			}
-			
+
 			if len(result.FilesGenerated) > 0 {
 				m.addFormattedStatusIndented("Files Generated", fmt.Sprintf("%d", len(result.FilesGenerated)))
 			}
-			
+
 			// Check if there are pending commands to execute
 			if len(m.pendingCommands) > 0 {
 				// Execute next pending command
@@ -217,7 +217,7 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 				m.pendingCommands = m.pendingCommands[1:] // Remove the command we're about to execute
 				return m, nextCmd
 			}
-			
+
 			// All operations completed - show thank you screen
 			m.state = StateCompleted
 			return m, nil
@@ -227,11 +227,11 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		m.hasAddressGroups = result.HasAddressGroups
 		m.hasRedundantAddrs = result.HasRedundantAddrs
 		m.addressesWithGroups = result.AddressesWithGroups
-		
+
 		// Add to output summary
 		m.addFormattedAction("Analysis Complete")
 		m.addFormattedStatus("Addresses", strings.Join(result.Addresses, ", "))
-		
+
 		// Count total matches
 		totalMatches := 0
 		if result.Processor != nil {
@@ -242,7 +242,7 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 			}
 		}
 		m.addFormattedStatus("Total References", fmt.Sprintf("%d", totalMatches))
-		
+
 		if result.HasAddressGroups {
 			m.addFormattedStatus("Address Groups", "Found")
 		}
@@ -313,7 +313,7 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 			}
 		}
 
-		err := utils.WriteAddressGroupCommands(outputFile, address, newAddressName, commands, itemsDict.AddressGroups)
+		err := utils.WriteAddressGroupCommands(outputFile, address, newAddressName, "192.168.1.100/32", commands, itemsDict.AddressGroups)
 		if err != nil {
 			return ProcessResult{
 				Success: false,
@@ -322,7 +322,7 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 		}
 
 		// Create detailed summary
-		summary := fmt.Sprintf("Generated commands for %d address groups\nAddress Mapping: %s → %s", 
+		summary := fmt.Sprintf("Generated commands for %d address groups\nAddress Mapping: %s → %s",
 			len(itemsDict.AddressGroups), address, newAddressName)
 
 		addressMappings := make(map[string]string)
@@ -385,7 +385,7 @@ func generateSequentialAddressGroupCommands(proc *processor.PANLogProcessor, add
 		var filesGenerated []string
 		var totalGroups int
 		var processedCount int
-		
+
 		// Process each address mapping sequentially
 		for sourceAddress, newAddress := range addressMappings {
 			itemsDict := proc.FormatResults(sourceAddress)
@@ -405,19 +405,19 @@ func generateSequentialAddressGroupCommands(proc *processor.PANLogProcessor, add
 				}
 			}
 
-			err := utils.WriteAddressGroupCommands(outputFile, sourceAddress, newAddress, commands, itemsDict.AddressGroups)
+			err := utils.WriteAddressGroupCommands(outputFile, sourceAddress, newAddress, "192.168.1.100/32", commands, itemsDict.AddressGroups)
 			if err != nil {
 				return ProcessResult{
 					Success: false,
 					Error:   fmt.Errorf("error writing address group commands for %s: %w", sourceAddress, err),
 				}
 			}
-			
+
 			filesGenerated = append(filesGenerated, outputFile)
 			totalGroups += len(itemsDict.AddressGroups)
 			processedCount++
 		}
-		
+
 		// Create detailed summary
 		var summary strings.Builder
 		summary.WriteString(fmt.Sprintf("Processed %d address mappings", processedCount))
@@ -428,7 +428,7 @@ func generateSequentialAddressGroupCommands(proc *processor.PANLogProcessor, add
 				summary.WriteString(fmt.Sprintf("\n• %s → %s", source, target))
 			}
 		}
-		
+
 		return ProcessResult{
 			Success:           true,
 			OperationComplete: true,
@@ -436,6 +436,221 @@ func generateSequentialAddressGroupCommands(proc *processor.PANLogProcessor, add
 			OperationSummary:  summary.String(),
 			FilesGenerated:    filesGenerated,
 			AddressMappings:   addressMappings,
+		}
+	})
+}
+
+// generateAddressGroupCmdWithNameAndIP generates address group commands with IP address input
+func generateAddressGroupCmdWithNameAndIP(proc *processor.PANLogProcessor, address, newAddressName, ipAddress string) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		itemsDict := proc.FormatResults(address)
+		if len(itemsDict.AddressGroups) == 0 {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("no address groups found for %s", address),
+			}
+		}
+
+		outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", address, newAddressName)
+
+		// Generate commands
+		var commands []string
+		for _, group := range itemsDict.AddressGroups {
+			if group.Context == "shared" {
+				commands = append(commands, fmt.Sprintf("set shared address-group %s static %s", group.Name, newAddressName))
+			} else {
+				commands = append(commands, fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newAddressName))
+			}
+		}
+
+		err := utils.WriteAddressGroupCommands(outputFile, address, newAddressName, ipAddress, commands, itemsDict.AddressGroups)
+		if err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("error writing address group commands: %w", err),
+			}
+		}
+
+		// Create detailed summary
+		summary := fmt.Sprintf("Generated commands for %d address groups\nAddress Mapping: %s → %s\nIP Address: %s",
+			len(itemsDict.AddressGroups), address, newAddressName, ipAddress)
+
+		addressMappings := make(map[string]string)
+		addressMappings[address] = newAddressName
+
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+			OperationType:     "Address Group Commands",
+			OperationSummary:  summary,
+			FilesGenerated:    []string{outputFile},
+			AddressMappings:   addressMappings,
+		}
+	})
+}
+
+// generateSequentialAddressGroupCommandsWithIP generates commands for multiple address mappings with IP addresses
+func generateSequentialAddressGroupCommandsWithIP(proc *processor.PANLogProcessor, addressMappings map[string]string, ipAddress string, pendingCommands []tea.Cmd) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		var summary strings.Builder
+		var filesGenerated []string
+		var allAddressMappings = make(map[string]string)
+		processedCount := 0
+		totalGroups := 0
+
+		summary.WriteString("Sequential Address Group Commands Generation:\n")
+
+		for sourceAddress, newAddress := range addressMappings {
+			itemsDict := proc.FormatResults(sourceAddress)
+			if len(itemsDict.AddressGroups) == 0 {
+				summary.WriteString(fmt.Sprintf("❌ %s: No address groups found\n", sourceAddress))
+				continue
+			}
+
+			outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", sourceAddress, newAddress)
+
+			// Generate commands
+			var commands []string
+			for _, group := range itemsDict.AddressGroups {
+				if group.Context == "shared" {
+					commands = append(commands, fmt.Sprintf("set shared address-group %s static %s", group.Name, newAddress))
+				} else {
+					commands = append(commands, fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newAddress))
+				}
+			}
+
+			err := utils.WriteAddressGroupCommands(outputFile, sourceAddress, newAddress, ipAddress, commands, itemsDict.AddressGroups)
+			if err != nil {
+				return ProcessResult{
+					Success: false,
+					Error:   fmt.Errorf("error writing address group commands for %s: %w", sourceAddress, err),
+				}
+			}
+
+			filesGenerated = append(filesGenerated, outputFile)
+			totalGroups += len(itemsDict.AddressGroups)
+			processedCount++
+			allAddressMappings[sourceAddress] = newAddress
+
+			summary.WriteString(fmt.Sprintf("✅ %s → %s: %d groups processed\n",
+				sourceAddress, newAddress, len(itemsDict.AddressGroups)))
+		}
+
+		if processedCount == 0 {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("no address mappings could be processed"),
+			}
+		}
+
+		// Execute pending commands if any
+		if len(pendingCommands) > 0 {
+			summary.WriteString(fmt.Sprintf("\n🔄 Executing %d additional operations...\n", len(pendingCommands)))
+			// Execute all pending commands in batch
+			go func() {
+				for _, cmd := range pendingCommands {
+					cmd()
+				}
+			}()
+		}
+
+		summary.WriteString(fmt.Sprintf("\n📊 Summary: %d addresses processed, %d total groups, %d files generated",
+			processedCount, totalGroups, len(filesGenerated)))
+		summary.WriteString(fmt.Sprintf("\n🌐 IP Address: %s", ipAddress))
+
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+			OperationType:     "Sequential Address Group Commands",
+			OperationSummary:  summary.String(),
+			FilesGenerated:    filesGenerated,
+			AddressMappings:   allAddressMappings,
+		}
+	})
+}
+
+// generateSequentialAddressGroupCommandsWithMappings generates commands for multiple addresses with separate IP mappings
+func generateSequentialAddressGroupCommandsWithMappings(proc *processor.PANLogProcessor, addressMappings map[string]string, ipMappings map[string]string, pendingCommands []tea.Cmd) tea.Cmd {
+	return tea.Cmd(func() tea.Msg {
+		var summary strings.Builder
+		var filesGenerated []string
+		var allAddressMappings = make(map[string]string)
+		processedCount := 0
+		totalGroups := 0
+
+		summary.WriteString("Sequential Address Group Commands Generation:\n")
+
+		for sourceAddress, newAddress := range addressMappings {
+			itemsDict := proc.FormatResults(sourceAddress)
+			if len(itemsDict.AddressGroups) == 0 {
+				summary.WriteString(fmt.Sprintf("❌ %s: No address groups found\n", sourceAddress))
+				continue
+			}
+
+			// Get the IP address for this specific source address
+			ipAddress, exists := ipMappings[sourceAddress]
+			if !exists {
+				summary.WriteString(fmt.Sprintf("❌ %s: No IP address mapping found\n", sourceAddress))
+				continue
+			}
+
+			outputFile := fmt.Sprintf("%s_to_%s_add_to_groups_commands.yml", sourceAddress, newAddress)
+
+			// Generate commands
+			var commands []string
+			for _, group := range itemsDict.AddressGroups {
+				if group.Context == "shared" {
+					commands = append(commands, fmt.Sprintf("set shared address-group %s static %s", group.Name, newAddress))
+				} else {
+					commands = append(commands, fmt.Sprintf("set device-group %s address-group %s static %s", group.DeviceGroup, group.Name, newAddress))
+				}
+			}
+
+			err := utils.WriteAddressGroupCommands(outputFile, sourceAddress, newAddress, ipAddress, commands, itemsDict.AddressGroups)
+			if err != nil {
+				return ProcessResult{
+					Success: false,
+					Error:   fmt.Errorf("error writing address group commands for %s: %w", sourceAddress, err),
+				}
+			}
+
+			filesGenerated = append(filesGenerated, outputFile)
+			totalGroups += len(itemsDict.AddressGroups)
+			processedCount++
+			allAddressMappings[sourceAddress] = fmt.Sprintf("%s (%s)", newAddress, ipAddress)
+
+			summary.WriteString(fmt.Sprintf("✅ %s → %s (%s): %d groups processed\n",
+				sourceAddress, newAddress, ipAddress, len(itemsDict.AddressGroups)))
+		}
+
+		if processedCount == 0 {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("no address mappings could be processed"),
+			}
+		}
+
+		// Execute pending commands if any
+		if len(pendingCommands) > 0 {
+			summary.WriteString(fmt.Sprintf("\n🔄 Executing %d additional operations...\n", len(pendingCommands)))
+			// Execute all pending commands in batch
+			go func() {
+				for _, cmd := range pendingCommands {
+					cmd()
+				}
+			}()
+		}
+
+		summary.WriteString(fmt.Sprintf("\n📊 Summary: %d addresses processed, %d total groups, %d files generated",
+			processedCount, totalGroups, len(filesGenerated)))
+
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+			OperationType:     "Sequential Address Group Commands with Mappings",
+			OperationSummary:  summary.String(),
+			FilesGenerated:    filesGenerated,
+			AddressMappings:   allAddressMappings,
 		}
 	})
 }

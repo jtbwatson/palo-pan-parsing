@@ -58,7 +58,7 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 	// This ensures we don't miss groups that weren't discovered during the initial pass
 	groupToAddresses := make(map[string]map[string]bool) // group name -> set of addresses
 	allGroups := make(map[string]models.AddressGroup)    // group name -> group info
-	
+
 	// Scan all lines for address groups containing our target addresses
 	for _, line := range allLines {
 		if agInfo := p.extractAddressGroup(line); agInfo != nil {
@@ -69,7 +69,7 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 					containedAddresses[addr] = true
 				}
 			}
-			
+
 			// If this group contains any of our addresses, store it
 			if len(containedAddresses) > 0 {
 				allGroups[agInfo.Name] = *agInfo
@@ -147,7 +147,7 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 		for _, groupName := range matchedGroups {
 			groupInfo := allGroups[groupName]
 			containedAddresses := groupToAddresses[groupName]
-			
+
 			// Add rule to each address contained in this group
 			for targetAddr := range containedAddresses {
 				// Skip if already in direct rules

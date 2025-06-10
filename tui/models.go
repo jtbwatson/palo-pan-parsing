@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"palo-pan-parsing/processor"
+	"palo-pan-parsing/utils"
 
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
@@ -24,6 +25,7 @@ const (
 	StatePostAnalysis
 	StateSelectSourceAddress
 	StateNewAddressInput
+	StateIPAddressInput
 	StateOperationStatus
 	StateCompleted
 	StateError
@@ -46,23 +48,25 @@ type Model struct {
 	addressInput    string
 	fileInput       string
 	newAddressInput string
+	ipAddressInput  string
 
 	// Address group generation
 	addressesWithGroups     []string
 	selectedSourceAddress   string
 	selectedSourceAddresses map[int]bool // Track which source addresses are selected
-	
+
 	// Individual address processing workflow
-	addressProcessingQueue []string      // Queue of addresses to process individually
-	currentProcessingIndex int           // Current index in the queue
+	addressProcessingQueue []string          // Queue of addresses to process individually
+	currentProcessingIndex int               // Current index in the queue
 	addressNameMappings    map[string]string // Maps source address to new address name
+	addressIPMappings      map[string]string // Maps source address to IP address
 
 	// Pending operations
 	pendingCommands []tea.Cmd
 
 	// Processing
-	progress    float64
-	progressBar progress.Model
+	progress       float64
+	progressBar    progress.Model
 	processingDots int
 
 	// Results
@@ -71,21 +75,22 @@ type Model struct {
 	hasAddressGroups  bool
 	hasRedundantAddrs bool
 	operationMessage  string
-	
+
 	// Operation details for status display
-	lastOperationType     string
-	lastOperationSummary  string
-	lastFilesGenerated    []string
-	lastAddressMappings   map[string]string
-	lastAddresses         []string
-	lastConfigFile        string
+	lastOperationType    string
+	lastOperationSummary string
+	lastFilesGenerated   []string
+	lastAddressMappings  map[string]string
+	lastAddresses        []string
+	lastConfigFile       string
 
 	// Output summary for right pane
-	outputSummary       []string
+	outputSummary      []string
 	outputScrollOffset int
 
 	// Error handling
-	err error
+	err               error
+	ipValidationError string
 
 	// UI components
 	cursor               int
@@ -105,6 +110,7 @@ func NewModel() Model {
 		postAnalysisSelected:    make(map[int]bool),
 		selectedSourceAddresses: make(map[int]bool),
 		addressNameMappings:     make(map[string]string),
+		addressIPMappings:       make(map[string]string),
 		progressBar:             prog,
 		showRightPane:           false,
 		outputSummary:           []string{},
@@ -125,10 +131,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-		
+
 		// Calculate pane sizes
 		if m.showRightPane {
-			m.leftPaneWidth = int(float64(m.width) * 0.6)  // 60% for left pane
+			m.leftPaneWidth = int(float64(m.width) * 0.6)    // 60% for left pane
 			m.rightPaneWidth = m.width - m.leftPaneWidth - 1 // 40% for right pane (minus 1 for separator)
 		} else {
 			m.leftPaneWidth = m.width
@@ -161,7 +167,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 		}
-		
+
 		switch m.state {
 		case StateMenu:
 			return m.updateMenu(msg)
@@ -177,6 +183,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updateSelectSourceAddress(msg)
 		case StateNewAddressInput:
 			return m.updateNewAddressInput(msg)
+		case StateIPAddressInput:
+			return m.updateIPAddressInput(msg)
 		case StateOperationStatus:
 			return m.updateOperationStatus(msg)
 		case StateCompleted:
@@ -229,13 +237,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.state == StateProcessing {
 			// Update progress from global state
 			m.progress = getProgress()
-			
+
 			// Check if processing is complete
 			done, result := getProcessingStatus()
 			if done && result != nil {
 				return m.handleProcessResult(*result)
 			}
-			
+
 			// Continue polling
 			return m, checkProcessingCompleteCmd()
 		}
@@ -254,7 +262,7 @@ func (m Model) renderWithDynamicWidth(content string) string {
 			return m.renderSinglePaneLayout(content)
 		}
 	}
-	
+
 	// Fallback to original style if dimensions not set
 	return boxStyle.Render(content)
 }
@@ -264,11 +272,11 @@ func (m Model) renderSinglePaneLayout(content string) string {
 	// Leave some margin around the edges for visual breathing room
 	marginHorizontal := 2
 	marginVertical := 1
-	
+
 	// Calculate content area leaving margins
-	contentWidth := m.width - (marginHorizontal * 2) - 2  // 2 for border
-	contentHeight := m.height - (marginVertical * 2) - 2  // 2 for border
-	
+	contentWidth := m.width - (marginHorizontal * 2) - 2 // 2 for border
+	contentHeight := m.height - (marginVertical * 2) - 2 // 2 for border
+
 	// Ensure minimum usable size
 	if contentWidth < 50 {
 		contentWidth = 50
@@ -276,7 +284,7 @@ func (m Model) renderSinglePaneLayout(content string) string {
 	if contentHeight < 10 {
 		contentHeight = 10
 	}
-	
+
 	// Create the main content box
 	mainStyle := lipgloss.NewStyle().
 		Width(contentWidth).
@@ -285,7 +293,7 @@ func (m Model) renderSinglePaneLayout(content string) string {
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(secondaryColor).
 		Align(lipgloss.Left)
-	
+
 	// Wrap in a positioning style to add the margins
 	return lipgloss.NewStyle().
 		Width(m.width).
@@ -297,16 +305,16 @@ func (m Model) renderSinglePaneLayout(content string) string {
 // renderTwoPaneLayout renders content with left and right panes
 func (m Model) renderTwoPaneLayout(content string) string {
 	marginVertical := 1
-	contentHeight := m.height - (marginVertical * 2) - 2  // 2 for border
-	
+	contentHeight := m.height - (marginVertical * 2) - 2 // 2 for border
+
 	if contentHeight < 10 {
 		contentHeight = 10
 	}
-	
+
 	// Calculate pane widths more simply
 	leftWidth := m.leftPaneWidth - 4   // Account for border and padding
 	rightWidth := m.rightPaneWidth - 4 // Account for border and padding
-	
+
 	// Left pane (main content)
 	leftPaneStyle := lipgloss.NewStyle().
 		Width(leftWidth).
@@ -314,22 +322,22 @@ func (m Model) renderTwoPaneLayout(content string) string {
 		Padding(1).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(secondaryColor)
-	
+
 	leftPane := leftPaneStyle.Render(content)
-	
-	// Right pane (output summary)  
+
+	// Right pane (output summary)
 	rightPaneStyle := lipgloss.NewStyle().
 		Width(rightWidth).
 		Height(contentHeight).
 		Padding(1).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(secondaryColor)
-	
+
 	rightPane := rightPaneStyle.Render(m.renderOutputSummary())
-	
+
 	// Combine panes horizontally
 	combinedPanes := lipgloss.JoinHorizontal(lipgloss.Top, leftPane, " ", rightPane)
-	
+
 	// Wrap with positioning
 	return lipgloss.NewStyle().
 		Padding(marginVertical, 1).
@@ -341,38 +349,38 @@ func (m Model) wrapText(text string, width int) []string {
 	if len(text) <= width {
 		return []string{text}
 	}
-	
+
 	var lines []string
 	words := strings.Fields(text)
 	var currentLine strings.Builder
-	
+
 	for _, word := range words {
 		// If adding this word would exceed the width, start a new line
 		if currentLine.Len() > 0 && currentLine.Len()+len(word)+1 > width {
 			lines = append(lines, currentLine.String())
 			currentLine.Reset()
 		}
-		
+
 		if currentLine.Len() > 0 {
 			currentLine.WriteString(" ")
 		}
 		currentLine.WriteString(word)
 	}
-	
+
 	if currentLine.Len() > 0 {
 		lines = append(lines, currentLine.String())
 	}
-	
+
 	return lines
 }
 
 // renderOutputSummary generates the content for the right pane with scrolling
 func (m Model) renderOutputSummary() string {
 	var s strings.Builder
-	
+
 	// Title for the output summary pane
 	s.WriteString(highlightStyle.Render("Session Summary") + "\n\n")
-	
+
 	if len(m.outputSummary) == 0 {
 		s.WriteString(helpStyle.Render("No operations completed yet.\n\nAnalysis results and operations\nwill appear here as you\nprogress through the workflow."))
 	} else {
@@ -381,22 +389,22 @@ func (m Model) renderOutputSummary() string {
 		if visibleLines < 5 {
 			visibleLines = 5
 		}
-		
+
 		// Apply scroll offset
 		startIdx := m.outputScrollOffset
 		endIdx := startIdx + visibleLines
-		
+
 		if startIdx >= len(m.outputSummary) {
 			startIdx = len(m.outputSummary) - 1
 			if startIdx < 0 {
 				startIdx = 0
 			}
 		}
-		
+
 		if endIdx > len(m.outputSummary) {
 			endIdx = len(m.outputSummary)
 		}
-		
+
 		// Render visible lines
 		for i := startIdx; i < endIdx; i++ {
 			if i < len(m.outputSummary) {
@@ -406,13 +414,13 @@ func (m Model) renderOutputSummary() string {
 				}
 			}
 		}
-		
+
 		// Add scroll indicator if content is scrollable
 		if len(m.outputSummary) > visibleLines {
 			s.WriteString("\n\n" + helpStyle.Render("PgUp/PgDn, Ctrl+U/D, or mouse wheel to scroll"))
 		}
 	}
-	
+
 	return s.String()
 }
 
@@ -444,7 +452,7 @@ func determineValueStyle(key, value string) lipgloss.Style {
 	// Convert to lowercase for easier comparison
 	lowerKey := strings.ToLower(key)
 	lowerValue := strings.ToLower(value)
-	
+
 	// Handle special cases first before pattern matching
 	switch lowerKey {
 	case "redundant addresses":
@@ -462,7 +470,7 @@ func determineValueStyle(key, value string) lipgloss.Style {
 			return sessionSuccessValueStyle
 		}
 	}
-	
+
 	// Success indicators (green)
 	successPatterns := []string{
 		"complete", "completed", "success", "successful", "found", "generated", "created", "finished",
@@ -472,7 +480,7 @@ func determineValueStyle(key, value string) lipgloss.Style {
 			return sessionSuccessValueStyle
 		}
 	}
-	
+
 	// Error indicators (red)
 	errorPatterns := []string{
 		"error", "failed", "failure", "not found", "missing", "invalid", "corrupt",
@@ -482,7 +490,7 @@ func determineValueStyle(key, value string) lipgloss.Style {
 			return sessionErrorValueStyle
 		}
 	}
-	
+
 	// Warning indicators (yellow)
 	warningPatterns := []string{
 		"warning", "partial", "limited", "timeout", "retry", "skipped",
@@ -492,7 +500,7 @@ func determineValueStyle(key, value string) lipgloss.Style {
 			return sessionWarningValueStyle
 		}
 	}
-	
+
 	// Additional special logic for remaining keys
 	switch lowerKey {
 	case "total references", "addresses", "address groups":
@@ -501,7 +509,7 @@ func determineValueStyle(key, value string) lipgloss.Style {
 			return sessionSuccessValueStyle
 		}
 	}
-	
+
 	// Default neutral styling
 	return sessionNeutralValueStyle
 }
@@ -572,6 +580,8 @@ func (m Model) View() string {
 		return m.viewSelectSourceAddress()
 	case StateNewAddressInput:
 		return m.viewNewAddressInput()
+	case StateIPAddressInput:
+		return m.viewIPAddressInput()
 	case StateOperationStatus:
 		return m.viewOperationStatus()
 	case StateCompleted:
@@ -659,11 +669,11 @@ func (m Model) updateFileInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		} else {
 			m.logFile = "default.log" // Use default when field is empty
 		}
-		// Enable right pane and add initial summary  
+		// Enable right pane and add initial summary
 		m.showRightPane = true
 		// Calculate pane sizes immediately if we have width
 		if m.width > 0 {
-			m.leftPaneWidth = int(float64(m.width) * 0.6)  // 60% for left pane
+			m.leftPaneWidth = int(float64(m.width) * 0.6)    // 60% for left pane
 			m.rightPaneWidth = m.width - m.leftPaneWidth - 1 // 40% for right pane (minus 1 for separator)
 		}
 		m.clearOutputSummary()
@@ -694,7 +704,7 @@ func (m Model) viewFileInput() string {
 
 	// Clean input styling with placeholder support
 	cursor := "█"
-	
+
 	if m.fileInput == "" {
 		// Show placeholder text when field is empty
 		s.WriteString(inputFieldStyle.Render("File: ") + placeholderStyle.Render("default.log") + cursor + "\n\n")
@@ -729,7 +739,7 @@ func (m Model) updateAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				// Add to output summary
 				m.addFormattedAction("Processing Started")
 				m.addFormattedStatus("Targets", strings.Join(m.addresses, ", "))
-				
+
 				// Start processing
 				m.state = StateProcessing
 				m.processingDots = 0
@@ -988,7 +998,7 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 	m.lastOperationSummary = ""
 	m.lastFilesGenerated = nil
 	m.lastAddressMappings = nil
-	
+
 	// Set status message for operations being executed
 	if len(selectedOps) == 1 {
 		m.operationMessage = "Executing: " + selectedOps[0]
@@ -1003,7 +1013,7 @@ func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
 	} else if len(cmds) > 1 {
 		// For multiple commands, execute the first one and store the rest for sequential execution
 		m.pendingCommands = cmds[1:] // Store remaining commands
-		return m, cmds[0] // Execute first command
+		return m, cmds[0]            // Execute first command
 	}
 
 	return m, nil
@@ -1075,7 +1085,7 @@ func (m Model) viewPostAnalysis() string {
 
 			// cursor(2) + checkbox(4) + space(1) = 7 total characters to align with
 			line = cursor + "   • " + displayChoice // 5 spaces to align properly
-			
+
 			// Add description for No Additional Options
 			// if choice == "No Additional Options" {
 			// 	s.WriteString(line + "\n")
@@ -1117,22 +1127,22 @@ func (m Model) viewOperationStatus() string {
 			s.WriteString(warningStyle.Render(m.operationMessage) + "\n\n")
 		} else {
 			// Show success message
-			s.WriteString(successStyle.Render("✅ " + m.operationMessage) + "\n\n")
-			
+			s.WriteString(successStyle.Render("✅ "+m.operationMessage) + "\n\n")
+
 			// Show detailed operation summary if available
 			if m.lastOperationType != "" {
 				s.WriteString(highlightStyle.Render("Operation: ") + m.lastOperationType + "\n\n")
-				
+
 				// Show configuration file if available
 				if m.lastConfigFile != "" {
 					s.WriteString(highlightStyle.Render("Configuration File: ") + m.lastConfigFile + "\n\n")
 				}
-				
+
 				// Show addresses analyzed if available
 				if len(m.lastAddresses) > 0 {
 					s.WriteString(highlightStyle.Render("Addresses: ") + strings.Join(m.lastAddresses, ", ") + "\n\n")
 				}
-				
+
 				// Show address mappings if available (for address group operations)
 				if len(m.lastAddressMappings) > 0 {
 					s.WriteString(highlightStyle.Render("Address Mappings:") + "\n")
@@ -1141,10 +1151,10 @@ func (m Model) viewOperationStatus() string {
 					}
 					s.WriteString("\n")
 				}
-				
+
 				if m.lastOperationSummary != "" {
 					s.WriteString(highlightStyle.Render("Summary:") + "\n")
-					
+
 					// Process summary line by line for proper indentation and wrapping
 					summaryLines := strings.Split(strings.TrimSpace(m.lastOperationSummary), "\n")
 					for _, line := range summaryLines {
@@ -1158,7 +1168,7 @@ func (m Model) viewOperationStatus() string {
 									maxLineLength = 40
 								}
 							}
-							
+
 							if len(line) <= maxLineLength {
 								if strings.HasPrefix(line, "•") || strings.HasPrefix(line, "-") {
 									s.WriteString("  " + line + "\n")
@@ -1188,7 +1198,7 @@ func (m Model) viewOperationStatus() string {
 					}
 					s.WriteString("\n")
 				}
-				
+
 				if len(m.lastFilesGenerated) > 0 {
 					s.WriteString(highlightStyle.Render("Files Generated:") + "\n")
 					for _, file := range m.lastFilesGenerated {
@@ -1265,7 +1275,7 @@ func (m Model) viewCompleted() string {
 └─────────────────────────────┘`
 		s.WriteString(successStyle.Render(minimalHeader))
 	}
-	
+
 	s.WriteString("\n\n")
 
 	// Main title
@@ -1347,27 +1357,15 @@ func (m Model) updateNewAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state = StatePostAnalysis
 		m.newAddressInput = ""
 		m.pendingCommands = nil // Clear pending commands when canceling
+		// Clear address mappings when canceling
+		m.addressNameMappings = make(map[string]string)
+		m.addressIPMappings = make(map[string]string)
 	case "enter":
 		if m.newAddressInput != "" {
-			// Save the current address mapping
-			if len(m.addressProcessingQueue) > 0 && m.currentProcessingIndex < len(m.addressProcessingQueue) {
-				currentAddress := m.addressProcessingQueue[m.currentProcessingIndex]
-				m.addressNameMappings[currentAddress] = m.newAddressInput
-				
-				// Move to next address or finish processing
-				m.currentProcessingIndex++
-				if m.currentProcessingIndex < len(m.addressProcessingQueue) {
-					// More addresses to process, continue to next one
-					m.newAddressInput = ""
-					// Stay in StateNewAddressInput for next address
-				} else {
-					// All addresses processed, generate commands for all mappings
-					return m.generateAllAddressGroupCommands()
-				}
-			} else {
-				// Fallback for single address (backward compatibility)
-				return m.generateSingleAddressGroupCommand()
-			}
+			// Move to IP address input state
+			m.state = StateIPAddressInput
+			m.ipAddressInput = ""
+			m.ipValidationError = ""
 		}
 	case "backspace":
 		if len(m.newAddressInput) > 0 {
@@ -1392,7 +1390,7 @@ func (m Model) viewNewAddressInput() string {
 	if len(m.addressProcessingQueue) > 0 && m.currentProcessingIndex < len(m.addressProcessingQueue) {
 		currentAddress := m.addressProcessingQueue[m.currentProcessingIndex]
 		progress := fmt.Sprintf("(%d of %d)", m.currentProcessingIndex+1, len(m.addressProcessingQueue))
-		
+
 		s.WriteString(fmt.Sprintf("Processing address %s: %s\n", progress, highlightStyle.Render(currentAddress)))
 		s.WriteString("Enter the name for the new address object:\n")
 		s.WriteString(fmt.Sprintf("(This will be added to the same groups as %s)\n\n", currentAddress))
@@ -1404,7 +1402,7 @@ func (m Model) viewNewAddressInput() string {
 				selectedAddresses = append(selectedAddresses, m.addressesWithGroups[i])
 			}
 		}
-		
+
 		if len(selectedAddresses) > 0 {
 			s.WriteString(fmt.Sprintf("Source address: %s\n", highlightStyle.Render(selectedAddresses[0])))
 		}
@@ -1419,6 +1417,113 @@ func (m Model) viewNewAddressInput() string {
 		s.WriteString("New Address Name: " + placeholderStyle.Render("my-new-address") + "\n\n")
 	} else {
 		s.WriteString(inputFieldStyle.Render("New Address Name: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
+	}
+
+	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
+
+	return m.renderWithDynamicWidth(s.String())
+}
+
+// IP address input state handlers
+func (m Model) updateIPAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.state = StateNewAddressInput
+		m.ipAddressInput = ""
+		m.ipValidationError = ""
+	case "enter":
+		if m.ipAddressInput != "" {
+			// Validate IP address format
+			if err := utils.ValidateIPAddress(m.ipAddressInput); err != nil {
+				m.ipValidationError = err.Error()
+				return m, nil
+			}
+
+			// Clear any previous validation error
+			m.ipValidationError = ""
+
+			// Normalize IP address (add default CIDR if missing)
+			normalizedIP, err := utils.NormalizeIPAddress(m.ipAddressInput)
+			if err != nil {
+				m.ipValidationError = err.Error()
+				return m, nil
+			}
+			m.ipAddressInput = normalizedIP
+
+			// Save the current address mapping and IP address
+			if len(m.addressProcessingQueue) > 0 && m.currentProcessingIndex < len(m.addressProcessingQueue) {
+				currentAddress := m.addressProcessingQueue[m.currentProcessingIndex]
+				m.addressNameMappings[currentAddress] = m.newAddressInput
+				m.addressIPMappings[currentAddress] = normalizedIP
+
+				// Move to next address or finish processing
+				m.currentProcessingIndex++
+				if m.currentProcessingIndex < len(m.addressProcessingQueue) {
+					// More addresses to process, continue to next one
+					m.newAddressInput = ""
+					m.ipAddressInput = ""
+					m.ipValidationError = ""
+					m.state = StateNewAddressInput
+				} else {
+					// All addresses processed, generate commands for all mappings
+					return m.generateAllAddressGroupCommandsWithMappings()
+				}
+			} else {
+				// Fallback for single address (backward compatibility)
+				return m.generateSingleAddressGroupCommandWithIP()
+			}
+		}
+	case "backspace":
+		if len(m.ipAddressInput) > 0 {
+			m.ipAddressInput = m.ipAddressInput[:len(m.ipAddressInput)-1]
+			// Clear validation error when user starts typing
+			m.ipValidationError = ""
+		}
+	default:
+		if len(msg.String()) == 1 {
+			m.ipAddressInput += msg.String()
+			// Clear validation error when user starts typing
+			m.ipValidationError = ""
+		}
+	}
+
+	return m, nil
+}
+
+func (m Model) viewIPAddressInput() string {
+	var s strings.Builder
+
+	title := titleStyle.Render("IP Address Input")
+	s.WriteString(title + "\n")
+
+	// Show current address being processed
+	if len(m.addressProcessingQueue) > 0 && m.currentProcessingIndex < len(m.addressProcessingQueue) {
+		currentAddress := m.addressProcessingQueue[m.currentProcessingIndex]
+		progress := fmt.Sprintf("(%d of %d)", m.currentProcessingIndex+1, len(m.addressProcessingQueue))
+
+		s.WriteString(fmt.Sprintf("Processing address %s: %s\n", progress, highlightStyle.Render(currentAddress)))
+		s.WriteString(fmt.Sprintf("New address name: %s\n", highlightStyle.Render(m.newAddressInput)))
+		s.WriteString("Enter the IP address for the new address object:\n\n")
+	} else {
+		// Fallback for single address
+		s.WriteString(fmt.Sprintf("New address name: %s\n", highlightStyle.Render(m.newAddressInput)))
+		s.WriteString("Enter the IP address for the new address object:\n\n")
+	}
+
+	// Clean input styling
+	displayText := m.ipAddressInput
+	cursor := "█"
+	if displayText == "" {
+		s.WriteString("IP Address: " + placeholderStyle.Render("192.168.1.100/32") + "\n\n")
+	} else {
+		s.WriteString(inputFieldStyle.Render("IP Address: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
+	}
+
+	// Show validation error if present
+	if m.ipValidationError != "" {
+		s.WriteString(errorStyle.Render("⚠ "+m.ipValidationError) + "\n\n")
 	}
 
 	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
@@ -1454,11 +1559,12 @@ func (m Model) updateSelectSourceAddress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.addressProcessingQueue = append(m.addressProcessingQueue, m.addressesWithGroups[i])
 			}
 		}
-		
+
 		if len(m.addressProcessingQueue) > 0 {
 			// Start processing the first address
 			m.currentProcessingIndex = 0
 			m.addressNameMappings = make(map[string]string) // Reset mappings
+			m.addressIPMappings = make(map[string]string)   // Reset IP mappings
 			m.state = StateNewAddressInput
 			m.newAddressInput = ""
 		}
@@ -1520,33 +1626,33 @@ func (m Model) showComprehensiveAnalysisSummary() (Model, tea.Cmd) {
 				m.lastOperationType = "Analysis Summary"
 				m.lastConfigFile = configFile
 				m.lastAddresses = addresses
-				
+
 				// Generate comprehensive summary
 				var summaryBuilder strings.Builder
 				summaryBuilder.WriteString(fmt.Sprintf("Configuration File: %s\n", configFile))
 				summaryBuilder.WriteString(fmt.Sprintf("Addresses Analyzed: %s\n", strings.Join(addresses, ", ")))
-				
+
 				// Count total findings
 				totalMatches := 0
 				addressGroupCount := 0
 				redundantAddressCount := 0
 				var allFiles []string
-				
+
 				for _, address := range addresses {
 					if result, exists := analysisResults.Results[address]; exists {
 						totalMatches += len(result.MatchingLines)
 					}
-					
+
 					// Check for additional analysis results
 					itemsDict := analysisResults.FormatResults(address)
 					addressGroupCount += len(itemsDict.AddressGroups)
 					redundantAddressCount += len(itemsDict.RedundantAddresses)
-					
+
 					// Add result file
 					resultFile := fmt.Sprintf("%s_results.yml", address)
 					allFiles = append(allFiles, resultFile)
 				}
-				
+
 				summaryBuilder.WriteString(fmt.Sprintf("Total Configuration References: %d\n", totalMatches))
 				if addressGroupCount > 0 {
 					summaryBuilder.WriteString(fmt.Sprintf("Address Groups Found: %d\n", addressGroupCount))
@@ -1554,7 +1660,7 @@ func (m Model) showComprehensiveAnalysisSummary() (Model, tea.Cmd) {
 				if redundantAddressCount > 0 {
 					summaryBuilder.WriteString(fmt.Sprintf("Redundant Addresses Found: %d", redundantAddressCount))
 				}
-				
+
 				m.lastOperationSummary = summaryBuilder.String()
 				m.lastFilesGenerated = allFiles
 				m.operationMessage = "Analysis completed successfully!"
@@ -1563,7 +1669,7 @@ func (m Model) showComprehensiveAnalysisSummary() (Model, tea.Cmd) {
 			}
 		}
 	}
-	
+
 	// Fallback if analysis results not available
 	m.lastOperationType = "Analysis Summary"
 	m.lastOperationSummary = "Analysis completed - see result files for details"
@@ -1602,7 +1708,7 @@ func (m Model) generateAllAddressGroupCommands() (Model, tea.Cmd) {
 		// newModel.pendingCommands = nil // Keep pending commands for later execution
 		return newModel, cmd
 	}
-	
+
 	// Fallback to operation status with error
 	newModel := m
 	newModel.state = StateOperationStatus
@@ -1614,7 +1720,7 @@ func (m Model) generateAllAddressGroupCommands() (Model, tea.Cmd) {
 func (m Model) generateSingleAddressGroupCommand() (Model, tea.Cmd) {
 	if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
 		var sourceAddress string
-		
+
 		// Find the selected source address
 		for i, selected := range m.selectedSourceAddresses {
 			if selected && i < len(m.addressesWithGroups) {
@@ -1622,7 +1728,7 @@ func (m Model) generateSingleAddressGroupCommand() (Model, tea.Cmd) {
 				break
 			}
 		}
-		
+
 		if sourceAddress != "" {
 			cmd := generateAddressGroupCmdWithName(proc, sourceAddress, m.newAddressInput)
 			newModel := m
@@ -1641,10 +1747,87 @@ func (m Model) generateSingleAddressGroupCommand() (Model, tea.Cmd) {
 			}
 		}
 	}
-	
+
 	// Fallback to operation status with error
 	newModel := m
 	newModel.state = StateOperationStatus
 	newModel.operationMessage = "Error: Could not generate address group command"
+	return newModel, nil
+}
+
+// generateAllAddressGroupCommandsWithIP generates commands for all address mappings with IP addresses
+func (m Model) generateAllAddressGroupCommandsWithIP() (Model, tea.Cmd) {
+	if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
+		newModel := m
+		newModel.state = StateOperationStatus
+		newModel.operationMessage = fmt.Sprintf("Executing operations for %d address mappings...", len(m.addressNameMappings))
+
+		// Create a sequential command to process all mappings with IP address
+		cmd := generateSequentialAddressGroupCommandsWithIP(proc, m.addressNameMappings, m.ipAddressInput, m.pendingCommands)
+		return newModel, cmd
+	}
+
+	// Fallback to operation status with error
+	newModel := m
+	newModel.state = StateOperationStatus
+	newModel.operationMessage = "Error: Could not generate address group commands with IP"
+	return newModel, nil
+}
+
+// generateAllAddressGroupCommandsWithMappings generates commands for all address mappings with separate IP mappings
+func (m Model) generateAllAddressGroupCommandsWithMappings() (Model, tea.Cmd) {
+	if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
+		newModel := m
+		newModel.state = StateOperationStatus
+		newModel.operationMessage = fmt.Sprintf("Executing operations for %d address mappings...", len(m.addressNameMappings))
+
+		// Create a sequential command to process all mappings with separate IP mappings
+		cmd := generateSequentialAddressGroupCommandsWithMappings(proc, m.addressNameMappings, m.addressIPMappings, m.pendingCommands)
+		return newModel, cmd
+	}
+	
+	// Fallback to operation status with error
+	newModel := m
+	newModel.state = StateOperationStatus
+	newModel.operationMessage = "Error: Could not generate address group commands with mappings"
+	return newModel, nil
+}
+
+// generateSingleAddressGroupCommandWithIP generates command for single address with IP
+func (m Model) generateSingleAddressGroupCommandWithIP() (Model, tea.Cmd) {
+	if proc, ok := m.analysisResults["processor"].(*processor.PANLogProcessor); ok {
+		var sourceAddress string
+
+		// Find the selected source address
+		for i, selected := range m.selectedSourceAddresses {
+			if selected && i < len(m.addressesWithGroups) {
+				sourceAddress = m.addressesWithGroups[i]
+				break
+			}
+		}
+
+		if sourceAddress != "" {
+			cmd := generateAddressGroupCmdWithNameAndIP(proc, sourceAddress, m.newAddressInput, m.ipAddressInput)
+			newModel := m
+			newModel.state = StateOperationStatus
+			newModel.operationMessage = "Executing address group operation..."
+
+			// If we have pending commands, execute them all together
+			if len(m.pendingCommands) > 0 {
+				// Add the address group command to pending commands
+				allCmds := append([]tea.Cmd{cmd}, m.pendingCommands...)
+				newModel.pendingCommands = nil // Clear pending commands
+				return newModel, tea.Batch(allCmds...)
+			} else {
+				// Just execute the address group command
+				return newModel, cmd
+			}
+		}
+	}
+
+	// Fallback to operation status with error
+	newModel := m
+	newModel.state = StateOperationStatus
+	newModel.operationMessage = "Error: Could not generate address group command with IP"
 	return newModel, nil
 }

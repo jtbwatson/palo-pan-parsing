@@ -2,6 +2,7 @@ package utils
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"runtime"
 	"strconv"
@@ -85,4 +86,64 @@ func ParseGroupMembers(definition string) []string {
 		}
 	}
 	return members
+}
+
+// ValidateIPAddress validates IP address format (IPv4 or IPv6 with CIDR notation)
+// Returns error if invalid, nil if valid
+func ValidateIPAddress(ipInput string) error {
+	if ipInput == "" {
+		return fmt.Errorf("IP address cannot be empty")
+	}
+
+	// Trim whitespace
+	ipInput = strings.TrimSpace(ipInput)
+
+	// Check if it contains CIDR notation
+	if strings.Contains(ipInput, "/") {
+		// Parse as CIDR
+		_, _, err := net.ParseCIDR(ipInput)
+		if err != nil {
+			return fmt.Errorf("invalid CIDR notation: %v", err)
+		}
+		return nil
+	}
+
+	// Parse as plain IP address
+	ip := net.ParseIP(ipInput)
+	if ip == nil {
+		return fmt.Errorf("invalid IP address format - expected IPv4 (e.g., 192.168.1.100) or IPv6, optionally with CIDR notation (e.g., 192.168.1.100/32)")
+	}
+
+	return nil
+}
+
+// NormalizeIPAddress normalizes IP address input by adding default CIDR if missing
+// For IPv4: adds /32 if no CIDR specified
+// For IPv6: adds /128 if no CIDR specified
+func NormalizeIPAddress(ipInput string) (string, error) {
+	if err := ValidateIPAddress(ipInput); err != nil {
+		return "", err
+	}
+
+	ipInput = strings.TrimSpace(ipInput)
+
+	// If already has CIDR notation, return as-is
+	if strings.Contains(ipInput, "/") {
+		return ipInput, nil
+	}
+
+	// Parse IP to determine type
+	ip := net.ParseIP(ipInput)
+	if ip == nil {
+		return "", fmt.Errorf("invalid IP address")
+	}
+
+	// Add default CIDR based on IP type
+	if ip.To4() != nil {
+		// IPv4 - add /32
+		return ipInput + "/32", nil
+	} else {
+		// IPv6 - add /128
+		return ipInput + "/128", nil
+	}
 }

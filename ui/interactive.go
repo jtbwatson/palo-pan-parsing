@@ -139,7 +139,7 @@ func RunInteractiveMode(panProcessor *processor.PANLogProcessor, processAddress 
 }
 
 // PromptAddressGroupCopy offers to generate commands for adding a new address to discovered groups
-func PromptAddressGroupCopy(originalAddress string, addressGroups []models.AddressGroup, writeCommands func(string, string, string, []string, []models.AddressGroup) error) {
+func PromptAddressGroupCopy(originalAddress string, addressGroups []models.AddressGroup, writeCommands func(string, string, string, string, []string, []models.AddressGroup) error) {
 	fmt.Println()
 	PrintSectionHeader("Address Group Configuration Helper")
 	fmt.Printf(ColorInfo("  Found %s address group(s) containing '%s'\n"),
@@ -162,8 +162,32 @@ func PromptAddressGroupCopy(originalAddress string, addressGroups []models.Addre
 		}
 	}
 
+	var ipAddress string
+	for ipAddress == "" {
+		userInput := PromptInput("Enter IP address (e.g., 192.168.1.100/32)", "")
+		if userInput == "" {
+			fmt.Println(ColorError("  IP address is required!"))
+			continue
+		}
+
+		// Validate IP address format
+		if err := utils.ValidateIPAddress(userInput); err != nil {
+			fmt.Printf(ColorError("  Invalid IP address: %s\n"), err.Error())
+			continue
+		}
+
+		// Normalize IP address (add default CIDR if missing)
+		normalizedIP, err := utils.NormalizeIPAddress(userInput)
+		if err != nil {
+			fmt.Printf(ColorError("  Error processing IP address: %s\n"), err.Error())
+			continue
+		}
+
+		ipAddress = normalizedIP
+	}
+
 	fmt.Println()
-	fmt.Printf(ColorSuccess("  Generating commands to add '%s' to discovered groups...\n"), newAddressName)
+	fmt.Printf(ColorSuccess("  Generating commands to add '%s' (%s) to discovered groups...\n"), newAddressName, ipAddress)
 	fmt.Println()
 
 	// Generate commands for each address group
@@ -187,7 +211,7 @@ func PromptAddressGroupCopy(originalAddress string, addressGroups []models.Addre
 	if commandCount > 0 {
 		// Write commands to YAML file
 		outputFile := fmt.Sprintf("%s_add_to_groups_commands.yml", newAddressName)
-		err := writeCommands(outputFile, originalAddress, newAddressName, commands, addressGroups)
+		err := writeCommands(outputFile, originalAddress, newAddressName, ipAddress, commands, addressGroups)
 		if err != nil {
 			fmt.Printf(ColorError("  Error writing commands file: %v\n"), err)
 		} else {
