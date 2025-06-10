@@ -27,6 +27,7 @@ type ProcessResult struct {
 	OperationType    string            // e.g., "Address Group Commands", "Cleanup Commands"
 	OperationSummary string            // Detailed description of what was done
 	FilesGenerated   []string          // List of output files created
+	CommandCount     int               // Number of commands generated
 	AddressMappings  map[string]string // Source -> Target address mappings (for address group operations)
 }
 
@@ -116,6 +117,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 
 			var hasAddressGroups, hasRedundantAddrs bool
 			var addressesWithGroups []string
+			var filesGenerated []string
 
 			// Generate results for each address
 			for _, address := range addresses {
@@ -146,6 +148,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 					})
 					return
 				}
+				filesGenerated = append(filesGenerated, outputFile)
 			}
 
 			setProcessingComplete(ProcessResult{
@@ -156,6 +159,7 @@ func processFileCmd(logFile string, addresses []string) tea.Cmd {
 				HasRedundantAddrs:   hasRedundantAddrs,
 				Processor:           panProcessor,
 				ConfigFile:          logFile,
+				FilesGenerated:      filesGenerated,
 			})
 		}()
 
@@ -173,13 +177,20 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 			m.operationMessage = "Operation completed successfully!"
 			m.lastOperationType = result.OperationType
 			m.lastOperationSummary = result.OperationSummary
-			m.lastFilesGenerated = result.FilesGenerated
+			// Accumulate files generated across all operations
+			m.lastFilesGenerated = append(m.lastFilesGenerated, result.FilesGenerated...)
 			m.lastAddressMappings = result.AddressMappings
 			m.lastAddresses = result.Addresses
 			m.lastConfigFile = result.ConfigFile
 
 			// ALWAYS add to session summary (this should persist across operations)
-			m.addFormattedAction(result.OperationType + " Complete")
+			completionMessage := result.OperationType + " Complete"
+			if result.OperationType == "Address Group Commands" {
+				completionMessage = "Address Group Commands Generated"
+			} else if result.OperationType == "Cleanup Commands" {
+				completionMessage = "Cleanup Commands Generated"
+			}
+			m.addFormattedAction(completionMessage)
 
 			// Handle different operation types in session summary
 			if result.OperationType == "Cleanup Commands" {
@@ -206,8 +217,23 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 				}
 			}
 
-			if len(result.FilesGenerated) > 0 {
-				m.addFormattedStatusIndented("Files Generated", fmt.Sprintf("%d", len(result.FilesGenerated)))
+			// Show command count if available, otherwise show file count
+			if result.CommandCount > 0 {
+				commandTypeText := "Commands Generated"
+				if result.OperationType == "Address Group Commands" {
+					commandTypeText = "Group Commands"
+				} else if result.OperationType == "Cleanup Commands" {
+					commandTypeText = "Cleanup Commands"
+				}
+				m.addFormattedStatusIndented(commandTypeText, fmt.Sprintf("%d", result.CommandCount))
+			} else if len(result.FilesGenerated) > 0 {
+				operationTypeText := "Command Files Generated"
+				if result.OperationType == "Address Group Commands" {
+					operationTypeText = "Group Command Files"
+				} else if result.OperationType == "Cleanup Commands" {
+					operationTypeText = "Cleanup Command Files"
+				}
+				m.addFormattedStatusIndented(operationTypeText, fmt.Sprintf("%d", len(result.FilesGenerated)))
 			}
 
 			// Check if there are pending commands to execute
@@ -227,6 +253,11 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		m.hasAddressGroups = result.HasAddressGroups
 		m.hasRedundantAddrs = result.HasRedundantAddrs
 		m.addressesWithGroups = result.AddressesWithGroups
+		
+		// Store files generated for completion screen
+		m.lastFilesGenerated = result.FilesGenerated
+		m.lastAddresses = result.Addresses
+		m.lastConfigFile = result.ConfigFile
 
 		// Add to output summary
 		m.addFormattedAction("Analysis Complete")
@@ -248,6 +279,11 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		}
 		if result.HasRedundantAddrs {
 			m.addFormattedStatus("Redundant Addresses", "Found")
+		}
+		
+		// Show files generated count
+		if len(result.FilesGenerated) > 0 {
+			m.addFormattedStatus("Files Generated", fmt.Sprintf("%d", len(result.FilesGenerated)))
 		}
 
 		// Set up post-analysis choices with separators for execution
@@ -334,6 +370,7 @@ func generateAddressGroupCmdWithName(proc *processor.PANLogProcessor, address, n
 			OperationType:     "Address Group Commands",
 			OperationSummary:  summary,
 			FilesGenerated:    []string{outputFile},
+			CommandCount:      len(commands),
 			AddressMappings:   addressMappings,
 		}
 	})
@@ -367,7 +404,6 @@ func generateCleanupCmd(proc *processor.PANLogProcessor, configFile, address str
 		if len(commands.RedundantAddresses) > 0 {
 			summary.WriteString(fmt.Sprintf("\nRedundant Addresses: %d found", len(commands.RedundantAddresses)))
 		}
-		summary.WriteString(fmt.Sprintf("\nGenerated %d cleanup commands", commands.TotalCommands))
 
 		return ProcessResult{
 			Success:           true,
@@ -375,6 +411,7 @@ func generateCleanupCmd(proc *processor.PANLogProcessor, configFile, address str
 			OperationType:     "Cleanup Commands",
 			OperationSummary:  summary.String(),
 			FilesGenerated:    []string{outputFile},
+			CommandCount:      commands.TotalCommands,
 		}
 	})
 }
@@ -435,6 +472,7 @@ func generateSequentialAddressGroupCommands(proc *processor.PANLogProcessor, add
 			OperationType:     "Address Group Commands",
 			OperationSummary:  summary.String(),
 			FilesGenerated:    filesGenerated,
+			CommandCount:      totalGroups,
 			AddressMappings:   addressMappings,
 		}
 	})
@@ -484,6 +522,7 @@ func generateAddressGroupCmdWithNameAndIP(proc *processor.PANLogProcessor, addre
 			OperationType:     "Address Group Commands",
 			OperationSummary:  summary,
 			FilesGenerated:    []string{outputFile},
+			CommandCount:      len(commands),
 			AddressMappings:   addressMappings,
 		}
 	})
@@ -564,6 +603,7 @@ func generateSequentialAddressGroupCommandsWithIP(proc *processor.PANLogProcesso
 			OperationType:     "Sequential Address Group Commands",
 			OperationSummary:  summary.String(),
 			FilesGenerated:    filesGenerated,
+			CommandCount:      totalGroups,
 			AddressMappings:   allAddressMappings,
 		}
 	})
@@ -650,6 +690,7 @@ func generateSequentialAddressGroupCommandsWithMappings(proc *processor.PANLogPr
 			OperationType:     "Sequential Address Group Commands with Mappings",
 			OperationSummary:  summary.String(),
 			FilesGenerated:    filesGenerated,
+			CommandCount:      totalGroups,
 			AddressMappings:   allAddressMappings,
 		}
 	})

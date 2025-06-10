@@ -455,8 +455,8 @@ func determineValueStyle(key, value string) lipgloss.Style {
 
 	// Handle special cases first before pattern matching
 	switch lowerKey {
-	case "redundant addresses":
-		// Redundant addresses should always be warning colored
+	case "redundant addresses", "address groups":
+		// Redundant addresses and address groups should always be warning colored
 		return sessionWarningValueStyle
 	case "target address":
 		// Target addresses should be success colored (actual address names)
@@ -464,7 +464,7 @@ func determineValueStyle(key, value string) lipgloss.Style {
 	case "file", "targets":
 		// File names and target addresses should be warning colored
 		return sessionWarningValueStyle
-	case "files generated", "cleanup commands":
+	case "files generated", "cleanup commands", "group commands":
 		// Non-zero counts should be success colored
 		if lowerValue != "0" && lowerValue != "" {
 			return sessionSuccessValueStyle
@@ -1285,7 +1285,11 @@ func (m Model) viewCompleted() string {
 	// Stats summary
 	totalFiles := len(m.lastFilesGenerated)
 	if totalFiles > 0 {
-		statsMsg := fmt.Sprintf("✨ Generated %d output files in the outputs/ directory", totalFiles)
+		fileWord := "files"
+		if totalFiles == 1 {
+			fileWord = "file"
+		}
+		statsMsg := fmt.Sprintf("✨ Generated %d output %s in the outputs/ directory", totalFiles, fileWord)
 		s.WriteString(successStyle.Render(statsMsg) + "\n")
 	}
 
