@@ -37,8 +37,7 @@ type ProcessProgressMsg struct {
 	Message  string
 }
 
-// ProgressPollMsg signals to check for progress updates
-type ProgressPollMsg struct{}
+// ProgressPollMsg moved to animation.go to avoid duplication
 
 // Global progress state
 var (
@@ -295,8 +294,8 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 			m.postAnalysisChoices = append(m.postAnalysisChoices, "Generate Cleanup Commands")
 		}
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "---") // Separator
-		m.postAnalysisChoices = append(m.postAnalysisChoices, "Execute Selected Operations")
-		m.postAnalysisChoices = append(m.postAnalysisChoices, "No Additional Options")
+		m.postAnalysisChoices = append(m.postAnalysisChoices, "Execute Selected Operation")
+		m.postAnalysisChoices = append(m.postAnalysisChoices, "No Additional Operations")
 		m.postAnalysisChoices = append(m.postAnalysisChoices, "Return to Main Menu")
 
 		// Reset selections and cursor
