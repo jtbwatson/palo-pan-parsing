@@ -15,6 +15,10 @@ func (m Model) View() string {
 		return m.viewFileInput()
 	case StateAddressInput:
 		return m.viewAddressInput()
+	case StateDeviceGroupInput:
+		return m.viewDeviceGroupInput()
+	case StateDeviceGroupSelection:
+		return m.viewDeviceGroupSelection()
 	case StateProcessing:
 		return m.viewProcessing()
 	case StateResults:

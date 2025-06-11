@@ -17,19 +17,21 @@ import (
 // main function and CLI setup
 func main() {
 	var (
-		addressFlag = flag.String("a", "", "Address name to search for (comma-separated for multiple)")
-		logfile     = flag.String("l", "default.log", "Path to the log file")
-		outputFlag  = flag.String("o", "", "Output file name")
-		configFile  = flag.String("c", "", "Path to configuration file")
-		verbose     = flag.Bool("verbose", false, "Run in verbose interactive mode (classic)")
-		help        = flag.Bool("h", false, "Show help")
+		addressFlag   = flag.String("a", "", "Address name to search for (comma-separated for multiple)")
+		logfile       = flag.String("l", "default.log", "Path to the log file")
+		outputFlag    = flag.String("o", "", "Output file name")
+		configFile    = flag.String("c", "", "Path to configuration file")
+		deviceGroup   = flag.String("dg", "", "Device group to scan for duplicate address objects")
+		verbose       = flag.Bool("verbose", false, "Run in verbose interactive mode (classic)")
+		help          = flag.Bool("h", false, "Show help")
 	)
 
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, "PAN Log Parser Tool - Analyze Palo Alto Networks configuration logs\n\n")
 		fmt.Fprintf(os.Stderr, "A high-performance tool for analyzing Palo Alto Networks configuration logs\n")
-		fmt.Fprintf(os.Stderr, "to find references to specific IP address objects. Supports both direct and indirect\n")
-		fmt.Fprintf(os.Stderr, "references through address groups, security rules, NAT rules, and device groups.\n\n")
+		fmt.Fprintf(os.Stderr, "to find references to specific IP address objects and detect duplicate addresses.\n")
+		fmt.Fprintf(os.Stderr, "Supports both direct and indirect references through address groups, security rules,\n")
+		fmt.Fprintf(os.Stderr, "NAT rules, and device groups.\n\n")
 		fmt.Fprintf(os.Stderr, "By default, runs in modern TUI mode. Use --verbose for classic interactive mode.\n\n")
 		fmt.Fprintf(os.Stderr, "Usage: %s [flags]\n\n", os.Args[0])
 		fmt.Fprintf(os.Stderr, "Flags:\n")
@@ -43,7 +45,9 @@ func main() {
 		return
 	}
 
-	if *verbose {
+	if *deviceGroup != "" {
+		runDeviceGroupDuplicateMode(*deviceGroup, *logfile, *outputFlag)
+	} else if *verbose {
 		runInteractiveMode()
 	} else if *addressFlag != "" || *configFile != "" {
 		runCommandLineMode(*addressFlag, *logfile, *outputFlag, *configFile)
@@ -51,6 +55,26 @@ func main() {
 		// Default to TUI mode when no specific arguments provided
 		runTUIMode()
 	}
+}
+
+func runDeviceGroupDuplicateMode(deviceGroup, logfile, outputFlag string) {
+	fmt.Printf(ui.ColorInfo("Scanning device group '%s' for duplicate address objects...\n"), deviceGroup)
+	fmt.Printf(ui.ColorInfo("Loading configuration file: %s\n"), logfile)
+
+	processor := processor.NewPANLogProcessor()
+	if err := processor.FindDuplicateAddressesInDeviceGroup(logfile, deviceGroup); err != nil {
+		fmt.Printf(ui.ColorError("Error processing file: %v\n"), err)
+		return
+	}
+
+	// Generate output file name
+	outputFile := outputFlag
+	if outputFile == "" {
+		outputFile = fmt.Sprintf("%s_duplicates.yml", deviceGroup)
+	}
+
+	fmt.Printf(ui.ColorSuccess("Duplicate address scan complete for device group '%s'\n"), deviceGroup)
+	fmt.Printf(ui.ColorInfo("Results saved to: %s\n"), ui.ColorHighlight("outputs/"+outputFile))
 }
 
 func runTUIMode() {

@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"fmt"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -15,6 +17,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleMouseMessage(msg)
 	case ProcessResult:
 		return m.handleProcessResult(msg)
+	case DeviceGroupDiscoveryResult:
+		return m.handleDeviceGroupDiscovery(msg)
 	case ProcessProgressMsg:
 		m.progress = msg.Progress
 		return m, nil
@@ -82,6 +86,12 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (Model, tea.Cmd) {
 		return model.(Model), cmd
 	case StateAddressInput:
 		model, cmd := m.updateAddressInput(msg)
+		return model.(Model), cmd
+	case StateDeviceGroupInput:
+		model, cmd := m.updateDeviceGroupInput(msg)
+		return model.(Model), cmd
+	case StateDeviceGroupSelection:
+		model, cmd := m.updateDeviceGroupSelection(msg)
 		return model.(Model), cmd
 	case StateResults:
 		model, cmd := m.updateResults(msg)
@@ -168,6 +178,28 @@ func (m Model) handleProgressPoll() (Model, tea.Cmd) {
 
 		// Continue polling
 		return m, checkProcessingCompleteCmd()
+	}
+	return m, nil
+}
+// handleDeviceGroupDiscovery handles the result of device group discovery
+func (m Model) handleDeviceGroupDiscovery(result DeviceGroupDiscoveryResult) (Model, tea.Cmd) {
+	if result.Success {
+		m.discoveredDeviceGroups = result.DeviceGroups
+		m.cursor = 0 // Reset cursor for device group selection
+		
+		if len(result.DeviceGroups) == 0 {
+			// No device groups found - show error
+			m.state = StateError
+			m.err = fmt.Errorf("no device groups found in configuration file")
+		} else {
+			// Show device group selection
+			m.state = StateDeviceGroupSelection
+			m.addFormattedStatusIndented("Device Groups Found", fmt.Sprintf("%d groups discovered", len(result.DeviceGroups)))
+		}
+	} else {
+		// Discovery failed - show error
+		m.state = StateError
+		m.err = result.Error
 	}
 	return m, nil
 }

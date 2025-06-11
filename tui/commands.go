@@ -37,6 +37,13 @@ type ProcessProgressMsg struct {
 	Message  string
 }
 
+// DeviceGroupDiscoveryResult represents the result of device group discovery
+type DeviceGroupDiscoveryResult struct {
+	Success      bool
+	Error        error
+	DeviceGroups []string
+}
+
 // ProgressPollMsg moved to animation.go to avoid duplication
 
 // Global progress state
@@ -188,6 +195,8 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 				completionMessage = "Address Group Commands Generated"
 			} else if result.OperationType == "Cleanup Commands" {
 				completionMessage = "Cleanup Commands Generated"
+			} else if result.OperationType == "Device Group Duplicate Scan" {
+				completionMessage = "Device Group Duplicate Scan Complete"
 			}
 			m.addFormattedAction(completionMessage)
 
@@ -223,6 +232,8 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 					commandTypeText = "Group Commands"
 				} else if result.OperationType == "Cleanup Commands" {
 					commandTypeText = "Cleanup Commands"
+				} else if result.OperationType == "Device Group Duplicate Scan" {
+					commandTypeText = "Duplicate Sets Found"
 				}
 				m.addFormattedStatusIndented(commandTypeText, fmt.Sprintf("%d", result.CommandCount))
 			} else if len(result.FilesGenerated) > 0 {
@@ -231,6 +242,8 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 					operationTypeText = "Group Command Files"
 				} else if result.OperationType == "Cleanup Commands" {
 					operationTypeText = "Cleanup Command Files"
+				} else if result.OperationType == "Device Group Duplicate Scan" {
+					operationTypeText = "Result Files Generated"
 				}
 				m.addFormattedStatusIndented(operationTypeText, fmt.Sprintf("%d", len(result.FilesGenerated)))
 			}
@@ -693,4 +706,90 @@ func generateSequentialAddressGroupCommandsWithMappings(proc *processor.PANLogPr
 			AddressMappings:   allAddressMappings,
 		}
 	})
+}
+
+// Device group discovery command
+func (m Model) startDeviceGroupDiscovery() tea.Cmd {
+	return processDeviceGroupDiscoveryCmd(m.logFile)
+}
+
+// Device group duplicate scan command
+func (m Model) startDeviceGroupDuplicateScan() tea.Cmd {
+	return processDeviceGroupDuplicateCmd(m.logFile, m.selectedDeviceGroup)
+}
+
+// processDeviceGroupDiscoveryCmd creates a command to discover device groups in a config file
+func processDeviceGroupDiscoveryCmd(logFile string) tea.Cmd {
+	return func() tea.Msg {
+		// Create processor in silent mode for TUI
+		panProcessor := processor.NewPANLogProcessor()
+		panProcessor.Silent = true
+
+		// Discover device groups
+		deviceGroups, err := panProcessor.DiscoverDeviceGroups(logFile)
+		
+		return DeviceGroupDiscoveryResult{
+			Success:      err == nil,
+			Error:        err,
+			DeviceGroups: deviceGroups,
+		}
+	}
+}
+
+// processDeviceGroupDuplicateCmd creates a command to scan for duplicates in a device group
+func processDeviceGroupDuplicateCmd(logFile, deviceGroup string) tea.Cmd {
+	return func() tea.Msg {
+		// Create processor in silent mode for TUI
+		panProcessor := processor.NewPANLogProcessor()
+		panProcessor.Silent = true
+
+		// Process device group for duplicates (synchronously to avoid hanging)
+		if err := panProcessor.FindDuplicateAddressesInDeviceGroup(logFile, deviceGroup); err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   err,
+			}
+		}
+
+		// Check results
+		scanResultKey := fmt.Sprintf("device-group-%s-scan", deviceGroup)
+		result, exists := panProcessor.Results[scanResultKey]
+		
+		if !exists {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("no scan results found for device group %s", deviceGroup),
+			}
+		}
+
+		duplicateCount := len(result.RedundantAddresses)
+		
+		// Determine the correct message based on duplicates found
+		var summary string
+		var filesGenerated []string
+		var duplicateSets int
+		
+		if duplicateCount == 0 {
+			summary = fmt.Sprintf("Scanned device group '%s' - no duplicate address objects found", deviceGroup)
+			duplicateSets = 0
+		} else {
+			// Count actual sets of duplicates by grouping by IP
+			duplicatesByIP := make(map[string]int)
+			for _, dup := range result.RedundantAddresses {
+				duplicatesByIP[dup.IPNetmask]++
+			}
+			duplicateSets = len(duplicatesByIP)
+			summary = fmt.Sprintf("Scanned device group '%s' and found %d duplicate address objects in %d sets", deviceGroup, duplicateCount, duplicateSets)
+			filesGenerated = []string{fmt.Sprintf("%s_duplicates.yml", deviceGroup)}
+		}
+		
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+			OperationType:     "Device Group Duplicate Scan",
+			OperationSummary:  summary,
+			FilesGenerated:    filesGenerated,
+			CommandCount:      duplicateSets,
+		}
+	}
 }

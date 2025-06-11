@@ -414,3 +414,259 @@ func (p *PANLogProcessor) FormatResults(address string) *models.FormattedResults
 		RedundantAddresses:    result.RedundantAddresses,
 	}
 }
+
+// FindDuplicateAddressesInDeviceGroup finds all duplicate address objects within a specific device group
+func (p *PANLogProcessor) FindDuplicateAddressesInDeviceGroup(filePath, deviceGroup string) error {
+	// Initialize result for the device group scan
+	scanResultKey := fmt.Sprintf("device-group-%s-scan", deviceGroup)
+	p.Results[scanResultKey] = NewAddressResult()
+
+	// Track IP addresses to find duplicates
+	ipToAddresses := make(map[string][]models.IPAddress)
+	deviceGroupAddresses := make(map[string]bool)
+
+	// Get file info
+	fileInfo, err := os.Stat(filePath)
+	if err != nil {
+		return fmt.Errorf("error accessing file: %w", err)
+	}
+
+	p.printf("  Loading configuration file into memory: %s (%s)\n",
+		fileInfo.Name(),
+		utils.FormatBytes(fileInfo.Size()))
+
+	// Open and read file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return fmt.Errorf("error opening file: %w", err)
+	}
+	defer file.Close()
+
+	p.println("  Reading file into memory...")
+
+	// Read all lines into memory
+	var allLines []string
+	scanner := bufio.NewScanner(file)
+
+	// Set a large buffer size for performance with big files
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line != "" {
+			allLines = append(allLines, line)
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("error reading file: %w", err)
+	}
+
+	totalLines := len(allLines)
+	p.printf("  Loaded %s configuration lines into memory\n",
+		utils.FormatNumber(totalLines))
+	p.printf("  Scanning for duplicate addresses in device group '%s'...\n", deviceGroup)
+
+	// Process all lines to find addresses in the specified device group
+	progressInterval := 20000
+	if totalLines > 5000000 {
+		progressInterval = 40000
+	}
+	lastProgress := 0
+
+	// Create patterns based on device group
+	var deviceGroupPattern, sharedPattern *regexp.Regexp
+	if deviceGroup == "shared" {
+		sharedPattern = regexp.MustCompile(`set\s+shared\s+address\s+(\S+)\s+ip-netmask\s+([\d\.]+/\d+)`)
+	} else {
+		deviceGroupPattern = regexp.MustCompile(fmt.Sprintf(`set\s+device-group\s+%s\s+address\s+(\S+)\s+ip-netmask\s+([\d\.]+/\d+)`, regexp.QuoteMeta(deviceGroup)))
+	}
+
+	for lineNum, line := range allLines {
+		// Show progress
+		if lineNum > 0 && lineNum%progressInterval == 0 && lineNum != lastProgress {
+			progress := float64(lineNum) / float64(totalLines)
+			percentage := progress * 100
+			message := fmt.Sprintf("Scanning line %s/%s (%.0f%%)",
+				utils.FormatNumber(lineNum), utils.FormatNumber(totalLines), percentage)
+
+			if p.ProgressCallback != nil {
+				p.ProgressCallback(progress, message)
+			} else {
+				p.printf("    %s\n", message)
+			}
+			lastProgress = lineNum
+		}
+
+		// Check for address definitions in the target device group or shared
+		var matches []string
+		if deviceGroup == "shared" && sharedPattern != nil {
+			matches = sharedPattern.FindStringSubmatch(line)
+		} else if deviceGroupPattern != nil {
+			matches = deviceGroupPattern.FindStringSubmatch(line)
+		}
+		
+		if matches != nil {
+			addrName, ipNetmask := matches[1], matches[2]
+			deviceGroupAddresses[addrName] = true
+
+			// Track IP mappings for duplicate detection
+			ipToAddresses[ipNetmask] = append(ipToAddresses[ipNetmask], models.IPAddress{
+				Name: addrName,
+				Line: line,
+			})
+
+			// Add to matching lines
+			p.Results[scanResultKey].MatchingLines = append(p.Results[scanResultKey].MatchingLines, line)
+		}
+	}
+
+	p.printf("  Found %d address objects in device group '%s'\n", len(deviceGroupAddresses), deviceGroup)
+
+	// Find duplicates using existing logic
+	p.findDuplicatesInDeviceGroup(ipToAddresses, deviceGroupAddresses, deviceGroup, scanResultKey)
+
+	// Write results
+	duplicates := p.Results[scanResultKey].RedundantAddresses
+	if len(duplicates) > 0 {
+		p.printf("  Found %d sets of duplicate addresses\n", len(duplicates))
+		return p.writeDuplicateResults(deviceGroup, duplicates, deviceGroupAddresses)
+	} else {
+		p.printf("  No duplicate addresses found in device group '%s'\n", deviceGroup)
+		// Write empty results file for TUI consistency
+		return p.writeDuplicateResults(deviceGroup, duplicates, deviceGroupAddresses)
+	}
+}
+
+// DiscoverDeviceGroups scans a config file and returns all unique device groups found
+func (p *PANLogProcessor) DiscoverDeviceGroups(filePath string) ([]string, error) {
+	// Open and read file
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %w", err)
+	}
+	defer file.Close()
+
+	deviceGroups := make(map[string]bool)
+	scanner := bufio.NewScanner(file)
+
+	// Set a large buffer size for performance
+	buf := make([]byte, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
+	// Pattern to match device group references
+	deviceGroupPattern := regexp.MustCompile(`set\s+device-group\s+(\S+)`)
+	sharedPattern := regexp.MustCompile(`set\s+shared\s+address`)
+
+	lineCount := 0
+	hasSharedAddresses := false
+	
+	for scanner.Scan() {
+		lineCount++
+		line := strings.TrimSpace(scanner.Text())
+		
+		// Show progress for large files
+		if lineCount%100000 == 0 {
+			p.printf("  Scanned %s lines for device groups...\n", utils.FormatNumber(lineCount))
+		}
+
+		// Check for device groups
+		if matches := deviceGroupPattern.FindStringSubmatch(line); matches != nil {
+			deviceGroupName := matches[1]
+			deviceGroups[deviceGroupName] = true
+		}
+		
+		// Check for shared addresses
+		if sharedPattern.MatchString(line) {
+			hasSharedAddresses = true
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading file: %w", err)
+	}
+
+	// Convert to sorted slice and add shared if found
+	var result []string
+	if hasSharedAddresses {
+		result = append(result, "shared")
+	}
+	for dg := range deviceGroups {
+		result = append(result, dg)
+	}
+	sort.Strings(result)
+
+	p.printf("  Found %d unique device groups", len(deviceGroups))
+	if hasSharedAddresses {
+		p.printf(" (plus shared scope)")
+	}
+	p.printf("\n")
+	return result, nil
+}
+
+// findDuplicatesInDeviceGroup finds duplicates within a specific device group
+func (p *PANLogProcessor) findDuplicatesInDeviceGroup(ipToAddresses map[string][]models.IPAddress, deviceGroupAddresses map[string]bool, deviceGroup, resultKey string) {
+	for ipNetmask, addrList := range ipToAddresses {
+		if len(addrList) > 1 {
+			// Found addresses with same IP - these are duplicates
+			var duplicates []models.RedundantAddress
+			for _, addr := range addrList {
+				// Only include addresses from our target device group
+				if deviceGroupAddresses[addr.Name] {
+					duplicates = append(duplicates, models.RedundantAddress{
+						Name:        addr.Name,
+						IPNetmask:   ipNetmask,
+						DeviceGroup: deviceGroup,
+					})
+				}
+			}
+			
+			// Add to results if we found duplicates in this device group
+			if len(duplicates) > 1 {
+				p.Results[resultKey].RedundantAddresses = append(p.Results[resultKey].RedundantAddresses, duplicates...)
+			}
+		}
+	}
+}
+
+// writeDuplicateResults writes the duplicate address results to a file
+func (p *PANLogProcessor) writeDuplicateResults(deviceGroup string, duplicates []models.RedundantAddress, allAddresses map[string]bool) error {
+	outputFile := fmt.Sprintf("outputs/%s_duplicates.yml", deviceGroup)
+	
+	// Ensure outputs directory exists
+	if err := os.MkdirAll("outputs", 0755); err != nil {
+		return fmt.Errorf("failed to create outputs directory: %w", err)
+	}
+
+	file, err := os.Create(outputFile)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer file.Close()
+
+	// Group duplicates by IP
+	duplicatesByIP := make(map[string][]models.RedundantAddress)
+	for _, dup := range duplicates {
+		duplicatesByIP[dup.IPNetmask] = append(duplicatesByIP[dup.IPNetmask], dup)
+	}
+
+	// Write header
+	fmt.Fprintf(file, "# Duplicate Address Objects in Device Group: %s\n", deviceGroup)
+	fmt.Fprintf(file, "# Generated by PAN Log Parser Tool\n\n")
+	fmt.Fprintf(file, "device_group: %s\n", deviceGroup)
+	fmt.Fprintf(file, "total_addresses: %d\n", len(allAddresses))
+	fmt.Fprintf(file, "duplicate_sets: %d\n\n", len(duplicatesByIP))
+
+	fmt.Fprintln(file, "duplicates:")
+	for ipNetmask, dups := range duplicatesByIP {
+		fmt.Fprintf(file, "  - ip_netmask: %s\n", ipNetmask)
+		fmt.Fprintln(file, "    addresses:")
+		for _, dup := range dups {
+			fmt.Fprintf(file, "      - %s\n", dup.Name)
+		}
+		fmt.Fprintln(file)
+	}
+
+	return nil
+}

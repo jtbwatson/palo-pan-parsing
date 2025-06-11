@@ -12,6 +12,8 @@ const (
 	StateMenu AppState = iota
 	StateFileInput
 	StateAddressInput
+	StateDeviceGroupInput
+	StateDeviceGroupSelection
 	StateProcessing
 	StateResults
 	StatePostAnalysis
@@ -35,12 +37,17 @@ type Model struct {
 	showRightPane  bool
 
 	// Input fields
-	logFile         string
-	addresses       []string
-	addressInput    string
-	fileInput       string
-	newAddressInput string
-	ipAddressInput  string
+	logFile           string
+	addresses         []string
+	addressInput      string
+	fileInput         string
+	deviceGroupInput  string
+	newAddressInput   string
+	ipAddressInput    string
+
+	// Device group duplicate scan
+	discoveredDeviceGroups []string
+	selectedDeviceGroup    string
 
 	// Address group generation
 	addressesWithGroups     []string
@@ -98,7 +105,7 @@ func NewModel() Model {
 	return Model{
 		state:                   StateMenu,
 		selected:                make(map[int]struct{}),
-		choices:                 []string{"Analyze Configuration File", "Exit"},
+		choices:                 []string{"Analyze Configuration File", "Find Duplicate Addresses in Device Group", "Exit"},
 		postAnalysisSelected:    make(map[int]bool),
 		selectedSourceAddresses: make(map[int]bool),
 		addressNameMappings:     make(map[string]string),
