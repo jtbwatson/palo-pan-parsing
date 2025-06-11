@@ -212,6 +212,7 @@ func (m Model) handleProgressPoll() (Model, tea.Cmd) {
 func (m Model) handleDeviceGroupDiscovery(result DeviceGroupDiscoveryResult) (Model, tea.Cmd) {
 	if result.Success {
 		m.discoveredDeviceGroups = result.DeviceGroups
+		m.configCache = result.Cache // Store the configuration cache
 		m.cursor = 0 // Reset cursor for device group selection
 		
 		if len(result.DeviceGroups) == 0 {

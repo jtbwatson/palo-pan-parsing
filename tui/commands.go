@@ -42,6 +42,7 @@ type DeviceGroupDiscoveryResult struct {
 	Success      bool
 	Error        error
 	DeviceGroups []string
+	Cache        *processor.ConfigurationCache // Cache for efficient multi-group analysis
 }
 
 // ProgressPollMsg moved to animation.go to avoid duplication
@@ -713,9 +714,9 @@ func (m Model) startDeviceGroupDiscovery() tea.Cmd {
 	return processDeviceGroupDiscoveryCmd(m.logFile)
 }
 
-// Device group duplicate scan command
+// Device group duplicate scan command  
 func (m Model) startDeviceGroupDuplicateScan() tea.Cmd {
-	return processDeviceGroupDuplicateCmd(m.logFile, m.selectedDeviceGroup)
+	return processDeviceGroupDuplicateCmdCached(m.configCache, m.selectedDeviceGroup)
 }
 
 // processDeviceGroupDiscoveryCmd creates a command to discover device groups in a config file
@@ -725,18 +726,94 @@ func processDeviceGroupDiscoveryCmd(logFile string) tea.Cmd {
 		panProcessor := processor.NewPANLogProcessor()
 		panProcessor.Silent = true
 
-		// Discover device groups
-		deviceGroups, err := panProcessor.DiscoverDeviceGroups(logFile)
+		// Load configuration once and cache it
+		cache, err := panProcessor.LoadConfigurationOnce(logFile)
+		if err != nil {
+			return DeviceGroupDiscoveryResult{
+				Success:      false,
+				Error:        err,
+				DeviceGroups: nil,
+			}
+		}
+
+		// Get device groups from cache (no additional file I/O)
+		deviceGroups := cache.GetAvailableDeviceGroups()
 		
 		return DeviceGroupDiscoveryResult{
-			Success:      err == nil,
-			Error:        err,
+			Success:      true,
+			Error:        nil,
 			DeviceGroups: deviceGroups,
+			Cache:        cache, // Pass the cache back to the model
 		}
 	}
 }
 
-// processDeviceGroupDuplicateCmd creates a command to scan for duplicates in a device group
+// processDeviceGroupDuplicateCmdCached creates a command to scan for duplicates using cached configuration
+func processDeviceGroupDuplicateCmdCached(cache *processor.ConfigurationCache, deviceGroup string) tea.Cmd {
+	return func() tea.Msg {
+		if cache == nil {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("configuration cache is not available"),
+			}
+		}
+
+		// Create processor in silent mode for TUI
+		panProcessor := processor.NewPANLogProcessor()
+		panProcessor.Silent = true
+
+		// Process device group for duplicates using cached data (no file I/O!)
+		if err := panProcessor.FindDuplicateAddressesInDeviceGroupFromCache(cache, deviceGroup); err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   err,
+			}
+		}
+
+		// Check results
+		scanResultKey := fmt.Sprintf("device-group-%s-scan", deviceGroup)
+		result, exists := panProcessor.Results[scanResultKey]
+		
+		if !exists {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("no scan results found for device group %s", deviceGroup),
+			}
+		}
+
+		duplicateCount := len(result.RedundantAddresses)
+		
+		// Determine the correct message based on duplicates found
+		var summary string
+		var filesGenerated []string
+		var duplicateSets int
+		
+		if duplicateCount == 0 {
+			summary = fmt.Sprintf("Scanned device group '%s' - no duplicate address objects found", deviceGroup)
+			duplicateSets = 0
+		} else {
+			// Count actual sets of duplicates by grouping by IP
+			duplicatesByIP := make(map[string]int)
+			for _, dup := range result.RedundantAddresses {
+				duplicatesByIP[dup.IPNetmask]++
+			}
+			duplicateSets = len(duplicatesByIP)
+			summary = fmt.Sprintf("Scanned device group '%s' and found %d duplicate address objects in %d sets", deviceGroup, duplicateCount, duplicateSets)
+			filesGenerated = []string{fmt.Sprintf("%s_duplicates.yml", deviceGroup)}
+		}
+		
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+			OperationType:     "Device Group Duplicate Scan",
+			OperationSummary:  summary,
+			FilesGenerated:    filesGenerated,
+			CommandCount:      duplicateSets,
+		}
+	}
+}
+
+// processDeviceGroupDuplicateCmd creates a command to scan for duplicates in a device group (legacy method)
 func processDeviceGroupDuplicateCmd(logFile, deviceGroup string) tea.Cmd {
 	return func() tea.Msg {
 		// Create processor in silent mode for TUI

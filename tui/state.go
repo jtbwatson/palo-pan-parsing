@@ -3,6 +3,7 @@ package tui
 import (
 	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
+	"palo-pan-parsing/processor"
 )
 
 // AppState represents the current state of the application
@@ -59,6 +60,9 @@ type Model struct {
 	currentProcessingIndex int               // Current index in the queue
 	addressNameMappings    map[string]string // Maps source address to new address name
 	addressIPMappings      map[string]string // Maps source address to IP address
+
+	// Configuration cache for efficient multi-device group analysis
+	configCache *processor.ConfigurationCache
 
 	// Pending operations
 	pendingCommands []tea.Cmd
