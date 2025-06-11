@@ -9,45 +9,63 @@ import (
 	"palo-pan-parsing/utils"
 )
 
-// findRedundantAddresses finds addresses with same IP netmask
+// findRedundantAddresses finds addresses with same IP netmask (optimized for large files)
 func (p *PANLogProcessor) findRedundantAddresses(ipToAddresses map[string][]models.IPAddress, targetAddresses map[string]bool) {
+	// Pre-compile regex pattern for device group extraction
+	deviceGroupPattern := regexp.MustCompile(`set\s+device-group\s+(\S+)\s+address`)
+	
+	// Only process IP addresses that have duplicates AND contain target addresses
 	for ipNetmask, addrList := range ipToAddresses {
-		if len(addrList) > 1 {
-			for targetAddr := range targetAddresses {
-				// Check if this target address is in the list
-				targetFound := false
-				for _, addr := range addrList {
-					if addr.Name == targetAddr {
-						targetFound = true
-						break
-					}
-				}
+		if len(addrList) <= 1 {
+			continue // Skip if no duplicates
+		}
 
-				if targetFound {
-					// Found redundant addresses for this target
-					var redundant []models.RedundantAddress
-					for _, addr := range addrList {
-						if addr.Name != targetAddr {
-							// Determine device group
-							var dg string
-							if strings.HasPrefix(addr.Line, "set shared") {
-								dg = "shared"
-							} else if matches := regexp.MustCompile(`set\s+device-group\s+(\S+)\s+address`).FindStringSubmatch(addr.Line); matches != nil {
-								dg = matches[1]
-							} else {
-								dg = "Unknown"
-							}
+		// Build target->redundant mapping for this IP in single pass
+		targetToRedundant := make(map[string][]models.RedundantAddress)
+		
+		// First pass: identify which targets are in this list
+		targetNamesInList := make(map[string]bool)
+		for _, addr := range addrList {
+			if targetAddresses[addr.Name] {
+				targetNamesInList[addr.Name] = true
+			}
+		}
+		
+		// Skip if no target addresses found in this duplicate group
+		if len(targetNamesInList) == 0 {
+			continue
+		}
 
-							redundant = append(redundant, models.RedundantAddress{
-								Name:        addr.Name,
-								IPNetmask:   ipNetmask,
-								DeviceGroup: dg,
-							})
-						}
+		// Second pass: build redundant address lists for each target
+		for _, addr := range addrList {
+			// Determine device group once
+			var dg string
+			if strings.HasPrefix(addr.Line, "set shared") {
+				dg = "shared"
+			} else if matches := deviceGroupPattern.FindStringSubmatch(addr.Line); matches != nil {
+				dg = matches[1]
+			} else {
+				dg = "Unknown"
+			}
+
+			// Add this address as redundant for all other targets in the same IP group
+			for targetName := range targetNamesInList {
+				if addr.Name != targetName {
+					if targetToRedundant[targetName] == nil {
+						targetToRedundant[targetName] = make([]models.RedundantAddress, 0, len(addrList)-1)
 					}
-					p.Results[targetAddr].RedundantAddresses = redundant
+					targetToRedundant[targetName] = append(targetToRedundant[targetName], models.RedundantAddress{
+						Name:        addr.Name,
+						IPNetmask:   ipNetmask,
+						DeviceGroup: dg,
+					})
 				}
 			}
+		}
+
+		// Assign results
+		for targetName, redundant := range targetToRedundant {
+			p.Results[targetName].RedundantAddresses = redundant
 		}
 	}
 }
@@ -59,12 +77,23 @@ func (p *PANLogProcessor) findIndirectRulesMemory(allLines []string, addresses [
 	groupToAddresses := make(map[string]map[string]bool) // group name -> set of addresses
 	allGroups := make(map[string]models.AddressGroup)    // group name -> group info
 
+	// Pre-create address lookup map for faster checking
+	addressLookup := make(map[string]bool)
+	for _, addr := range addresses {
+		addressLookup[addr] = true
+	}
+
 	// Scan all lines for address groups containing our target addresses
 	for _, line := range allLines {
+		// Fast pre-filter for address-group lines only
+		if !strings.Contains(line, "address-group") {
+			continue
+		}
+		
 		if agInfo := p.extractAddressGroup(line); agInfo != nil {
 			// Check which of our target addresses this group contains
 			containedAddresses := make(map[string]bool)
-			for _, addr := range addresses {
+			for addr := range addressLookup {
 				if strings.Contains(line, addr) {
 					containedAddresses[addr] = true
 				}

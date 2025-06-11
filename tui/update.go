@@ -124,6 +124,33 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (Model, tea.Cmd) {
 
 // handleMouseMessage handles mouse input
 func (m Model) handleMouseMessage(msg tea.MouseMsg) (Model, tea.Cmd) {
+	// Handle mouse wheel scrolling for device group selection
+	if m.state == StateDeviceGroupSelection {
+		switch msg.Type {
+		case tea.MouseWheelUp:
+			if m.deviceGroupScrollOffset > 0 {
+				m.deviceGroupScrollOffset -= 2 // Scroll up 2 lines
+				if m.deviceGroupScrollOffset < 0 {
+					m.deviceGroupScrollOffset = 0
+				}
+			}
+			return m, nil
+		case tea.MouseWheelDown:
+			maxVisibleLines := m.getDeviceGroupMaxVisibleLines()
+			maxScroll := len(m.discoveredDeviceGroups) - maxVisibleLines
+			if maxScroll < 0 {
+				maxScroll = 0
+			}
+			if m.deviceGroupScrollOffset < maxScroll {
+				m.deviceGroupScrollOffset += 2 // Scroll down 2 lines
+				if m.deviceGroupScrollOffset > maxScroll {
+					m.deviceGroupScrollOffset = maxScroll
+				}
+			}
+			return m, nil
+		}
+	}
+	
 	// Handle mouse wheel scrolling for right pane when visible
 	if m.showRightPane {
 		switch msg.Type {

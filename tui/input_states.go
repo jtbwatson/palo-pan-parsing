@@ -402,7 +402,7 @@ func (m Model) viewDeviceGroupSelection() string {
 		}
 	}
 
-	s.WriteString("\n" + helpStyle.Render("Use ↑/↓ to navigate, PgUp/PgDn to scroll, Enter to select, Esc to go back"))
+	s.WriteString("\n" + helpStyle.Render("Use ↑/↓ to navigate, PgUp/PgDn or mouse wheel to scroll, Enter to select, Esc to go back"))
 
 	return m.renderWithDynamicWidth(s.String())
 }
