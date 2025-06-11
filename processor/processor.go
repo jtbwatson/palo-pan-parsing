@@ -475,12 +475,23 @@ func (p *PANLogProcessor) FindDuplicateAddressesInDeviceGroup(filePath, deviceGr
 	}
 	lastProgress := 0
 
-	// Create patterns based on device group
-	var deviceGroupPattern, sharedPattern *regexp.Regexp
+	// Create comprehensive patterns for all address types
+	var deviceGroupPatterns, sharedPatterns []*regexp.Regexp
 	if deviceGroup == "shared" {
-		sharedPattern = regexp.MustCompile(`set\s+shared\s+address\s+(\S+)\s+ip-netmask\s+([\d\.]+/\d+)`)
+		sharedPatterns = []*regexp.Regexp{
+			regexp.MustCompile(`set\s+shared\s+address\s+(\S+)\s+ip-netmask\s+([\d\./]+)`),
+			regexp.MustCompile(`set\s+shared\s+address\s+(\S+)\s+ip-range\s+([\d\.\-\s]+)`),
+			regexp.MustCompile(`set\s+shared\s+address\s+(\S+)\s+fqdn\s+(\S+)`),
+			regexp.MustCompile(`set\s+shared\s+address\s+(\S+)\s+ip-wildcard\s+([\d\.\*]+)`),
+		}
 	} else {
-		deviceGroupPattern = regexp.MustCompile(fmt.Sprintf(`set\s+device-group\s+%s\s+address\s+(\S+)\s+ip-netmask\s+([\d\.]+/\d+)`, regexp.QuoteMeta(deviceGroup)))
+		dgEscaped := regexp.QuoteMeta(deviceGroup)
+		deviceGroupPatterns = []*regexp.Regexp{
+			regexp.MustCompile(fmt.Sprintf(`set\s+device-group\s+%s\s+address\s+(\S+)\s+ip-netmask\s+([\d\./]+)`, dgEscaped)),
+			regexp.MustCompile(fmt.Sprintf(`set\s+device-group\s+%s\s+address\s+(\S+)\s+ip-range\s+([\d\.\-\s]+)`, dgEscaped)),
+			regexp.MustCompile(fmt.Sprintf(`set\s+device-group\s+%s\s+address\s+(\S+)\s+fqdn\s+(\S+)`, dgEscaped)),
+			regexp.MustCompile(fmt.Sprintf(`set\s+device-group\s+%s\s+address\s+(\S+)\s+ip-wildcard\s+([\d\.\*]+)`, dgEscaped)),
+		}
 	}
 
 	for lineNum, line := range allLines {
@@ -499,30 +510,61 @@ func (p *PANLogProcessor) FindDuplicateAddressesInDeviceGroup(filePath, deviceGr
 			lastProgress = lineNum
 		}
 
-		// Check for address definitions in the target device group or shared
-		var matches []string
-		if deviceGroup == "shared" && sharedPattern != nil {
-			matches = sharedPattern.FindStringSubmatch(line)
-		} else if deviceGroupPattern != nil {
-			matches = deviceGroupPattern.FindStringSubmatch(line)
+		// Check for address definitions in the target device group or shared using all patterns
+		var addrName, addrValue string
+		var found bool
+		
+		// Try all patterns for the target scope
+		patterns := deviceGroupPatterns
+		if deviceGroup == "shared" {
+			patterns = sharedPatterns
 		}
 		
-		if matches != nil {
-			addrName, ipNetmask := matches[1], matches[2]
+		for _, pattern := range patterns {
+			if matches := pattern.FindStringSubmatch(line); matches != nil {
+				addrName, addrValue = matches[1], matches[2]
+				found = true
+				break
+			}
+		}
+		
+		if found {
 			deviceGroupAddresses[addrName] = true
 
-			// Track IP mappings for duplicate detection
-			ipToAddresses[ipNetmask] = append(ipToAddresses[ipNetmask], models.IPAddress{
-				Name: addrName,
-				Line: line,
-			})
+			// Track IP mappings for duplicate detection (only for comparable address types)
+			// We can only detect duplicates for IP-based addresses, not FQDNs
+			if strings.Contains(line, "ip-netmask") || strings.Contains(line, "ip-range") || strings.Contains(line, "ip-wildcard") {
+				ipToAddresses[addrValue] = append(ipToAddresses[addrValue], models.IPAddress{
+					Name: addrName,
+					Line: line,
+				})
+			}
 
-			// Add to matching lines
+			// Add to matching lines for debugging
 			p.Results[scanResultKey].MatchingLines = append(p.Results[scanResultKey].MatchingLines, line)
 		}
 	}
 
 	p.printf("  Found %d address objects in device group '%s'\n", len(deviceGroupAddresses), deviceGroup)
+	
+	// Debug: Show first few address objects found
+	if !p.Silent && len(deviceGroupAddresses) > 0 {
+		count := 0
+		p.printf("  Sample addresses found:\n")
+		for addrName := range deviceGroupAddresses {
+			if count >= 5 {
+				p.printf("    ... and %d more\n", len(deviceGroupAddresses)-5)
+				break
+			}
+			p.printf("    - %s\n", addrName)
+			count++
+		}
+	} else if !p.Silent {
+		p.printf("  No address objects found - this could indicate:\n")
+		p.printf("    - Device group name doesn't match exactly\n")
+		p.printf("    - Address definitions use different format\n")
+		p.printf("    - Multi-line address definitions\n")
+	}
 
 	// Find duplicates using existing logic
 	p.findDuplicatesInDeviceGroup(ipToAddresses, deviceGroupAddresses, deviceGroup, scanResultKey)
