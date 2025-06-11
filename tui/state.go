@@ -87,6 +87,9 @@ type Model struct {
 	outputSummary      []string
 	outputScrollOffset int
 
+	// Device group selection scrolling
+	deviceGroupScrollOffset int
+
 	// Error handling
 	err               error
 	ipValidationError string
@@ -114,6 +117,7 @@ func NewModel() Model {
 		showRightPane:           false,
 		outputSummary:           []string{},
 		outputScrollOffset:      0,
+		deviceGroupScrollOffset: 0,
 		leftPaneWidth:           0, // Will be set by window size
 		rightPaneWidth:          0,
 	}

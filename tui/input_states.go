@@ -269,13 +269,58 @@ func (m Model) updateDeviceGroupSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "esc":
 		m.state = StateMenu
 		m.cursor = 0
+		m.deviceGroupScrollOffset = 0
 	case "up", "k":
 		if m.cursor > 0 {
 			m.cursor--
+			// Auto-scroll up if cursor goes above visible area
+			if m.cursor < m.deviceGroupScrollOffset {
+				m.deviceGroupScrollOffset = m.cursor
+			}
 		}
 	case "down", "j":
 		if m.cursor < len(m.discoveredDeviceGroups)-1 {
 			m.cursor++
+			// Auto-scroll down if cursor goes below visible area
+			maxVisibleLines := m.getDeviceGroupMaxVisibleLines()
+			if m.cursor >= m.deviceGroupScrollOffset+maxVisibleLines {
+				m.deviceGroupScrollOffset = m.cursor - maxVisibleLines + 1
+			}
+		}
+	case "pgup":
+		// Page up - move cursor and scroll offset up by visible page size
+		maxVisibleLines := m.getDeviceGroupMaxVisibleLines()
+		if m.cursor > 0 {
+			m.cursor -= maxVisibleLines
+			if m.cursor < 0 {
+				m.cursor = 0
+			}
+			m.deviceGroupScrollOffset = m.cursor
+		}
+	case "pgdn":
+		// Page down - move cursor and scroll offset down by visible page size
+		maxVisibleLines := m.getDeviceGroupMaxVisibleLines()
+		if m.cursor < len(m.discoveredDeviceGroups)-1 {
+			m.cursor += maxVisibleLines
+			if m.cursor >= len(m.discoveredDeviceGroups) {
+				m.cursor = len(m.discoveredDeviceGroups) - 1
+			}
+			// Update scroll offset to keep cursor visible
+			if m.cursor >= m.deviceGroupScrollOffset+maxVisibleLines {
+				m.deviceGroupScrollOffset = m.cursor - maxVisibleLines + 1
+			}
+		}
+	case "home":
+		// Go to first item
+		m.cursor = 0
+		m.deviceGroupScrollOffset = 0
+	case "end":
+		// Go to last item
+		m.cursor = len(m.discoveredDeviceGroups) - 1
+		maxVisibleLines := m.getDeviceGroupMaxVisibleLines()
+		m.deviceGroupScrollOffset = len(m.discoveredDeviceGroups) - maxVisibleLines
+		if m.deviceGroupScrollOffset < 0 {
+			m.deviceGroupScrollOffset = 0
 		}
 	case "enter", " ":
 		if m.cursor < len(m.discoveredDeviceGroups) {
@@ -290,26 +335,84 @@ func (m Model) updateDeviceGroupSelection(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// getDeviceGroupMaxVisibleLines calculates max lines available for device group list
+func (m Model) getDeviceGroupMaxVisibleLines() int {
+	if m.height == 0 {
+		return 10 // Default fallback
+	}
+	
+	// Calculate available height for device group list
+	// Account for: title (2 lines), help text (2 lines), help footer (2 lines), padding (4 lines)
+	usedLines := 10
+	availableHeight := m.height - usedLines
+	
+	// Ensure minimum of 5 visible lines and maximum of actual content
+	if availableHeight < 5 {
+		availableHeight = 5
+	}
+	if availableHeight > len(m.discoveredDeviceGroups) {
+		availableHeight = len(m.discoveredDeviceGroups)
+	}
+	
+	return availableHeight
+}
+
 func (m Model) viewDeviceGroupSelection() string {
 	var s strings.Builder
 
 	title := titleStyle.Render("Select Device Group")
 	s.WriteString(title + "\n")
 
-	s.WriteString(helpStyle.Render(fmt.Sprintf("Found %d device groups. Select one to scan for duplicate address objects:\n\n", len(m.discoveredDeviceGroups))))
+	maxVisibleLines := m.getDeviceGroupMaxVisibleLines()
+	totalGroups := len(m.discoveredDeviceGroups)
+	
+	// Show scroll information if needed
+	if totalGroups > maxVisibleLines {
+		scrollInfo := fmt.Sprintf("Found %d device groups (showing %d-%d). Use PgUp/PgDn to scroll:", 
+			totalGroups, 
+			m.deviceGroupScrollOffset+1, 
+			min(m.deviceGroupScrollOffset+maxVisibleLines, totalGroups))
+		s.WriteString(helpStyle.Render(scrollInfo + "\n\n"))
+	} else {
+		s.WriteString(helpStyle.Render(fmt.Sprintf("Found %d device groups. Select one to scan for duplicate address objects:\n\n", totalGroups)))
+	}
 
-	// Display device groups as selectable list
-	for i, dg := range m.discoveredDeviceGroups {
+	// Calculate the range of items to display
+	startIdx := m.deviceGroupScrollOffset
+	endIdx := min(startIdx+maxVisibleLines, totalGroups)
+	
+	// Display only visible device groups
+	for i := startIdx; i < endIdx; i++ {
+		dg := m.discoveredDeviceGroups[i]
 		if m.cursor == i {
 			s.WriteString(selectedStyle.Render(fmt.Sprintf("> %s", dg)) + "\n")
 		} else {
 			s.WriteString(choiceStyle.Render(fmt.Sprintf("  %s", dg)) + "\n")
 		}
 	}
+	
+	// Add scroll indicators if needed
+	if totalGroups > maxVisibleLines {
+		s.WriteString("\n")
+		if m.deviceGroupScrollOffset > 0 {
+			s.WriteString(helpStyle.Render("  ↑ More items above") + "\n")
+		}
+		if endIdx < totalGroups {
+			s.WriteString(helpStyle.Render("  ↓ More items below") + "\n")
+		}
+	}
 
-	s.WriteString("\n" + helpStyle.Render("Use ↑/↓ to navigate, Enter to select, Esc to go back, Ctrl+C to quit"))
+	s.WriteString("\n" + helpStyle.Render("Use ↑/↓ to navigate, PgUp/PgDn to scroll, Enter to select, Esc to go back"))
 
 	return m.renderWithDynamicWidth(s.String())
+}
+
+// min returns the minimum of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 // New address input state handlers
