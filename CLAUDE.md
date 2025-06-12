@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a PAN (Palo Alto Networks) Log Parser Tool - a high-performance Go-based command-line utility that analyzes Palo Alto Networks configuration logs to find references to specific IP address objects. The tool searches for both direct and indirect references through address groups, security rules, NAT rules, and device groups, optimized for large Panorama configuration files.
+This is a PAN (Palo Alto Networks) XML Configuration Parser - a high-performance Go-based command-line utility that analyzes Palo Alto Networks XML configuration files to find references to specific IP address objects. The tool searches for both direct and indirect references through address groups, security rules, NAT rules, and device groups, optimized for large Panorama XML configuration exports.
 
 ## Common Commands
 
@@ -33,10 +33,10 @@ make build
 # or via make: make verbose
 
 # Command line mode with specific parameters
-./pan-parser -a <address_name> -l <log_file> -o <output_file>
+./pan-parser -a <address_name> -l <xml_config_file> -o <output_file>
 
 # Multiple address search
-./pan-parser -a "address1,address2,address3" -l logfile.log
+./pan-parser -a "address1,address2,address3" -l panos.xml
 
 # Using configuration file
 ./pan-parser -c config.json
@@ -49,39 +49,43 @@ make build
 
 ### Core Functionality
 - **Main Entry (`main.go`)**: Command-line interface, flag parsing, and high-level orchestration with TUI/interactive mode routing
-- **Processor Package (`processor/`)**: Core parsing engine with optimized algorithms and silent mode support
-  - `processor.go`: Main processing logic, file parsing, pattern matching, and conditional output
-  - `analysis.go`: Advanced analysis features (redundant addresses, indirect rules, nested groups)
-  - `cleanup.go`: Redundant address cleanup analysis and command generation
+- **Parser Package (`parser/`)**: XML parsing engine for PAN configuration files
+  - `xml_reader.go`: Streaming XML parser for memory-efficient processing
+  - `xml_types.go`: Type definitions for PAN XML configuration elements
+  - `xml_utils.go`: XML parsing utilities and helper functions
+- **Processor Package (`processor/`)**: Core analysis engine with optimized algorithms and silent mode support
+  - `processor.go`: Main processing logic, XML parsing coordination, pattern matching, and analysis orchestration
+  - `address_analyzer.go`: Address reference analysis, group membership detection, and cross-reference mapping
+  - `redundancy_analyzer.go`: Redundant address detection with smart scope analysis and cleanup command generation
+  - `scope_analyzer.go`: Scope optimization and device group analysis
 - **Models Package (`models/`)**: Data structures and type definitions
-  - `models.go`: All data models, regex patterns, and result structures
-- **TUI Package (`tui/`)**: Modern Terminal User Interface (NEW!)
-  - `tui.go`: Main TUI application entry point and program configuration
-  - `models.go`: TUI state management, navigation logic, and multi-select operations
-  - `styles.go`: Professional blue/purple color scheme and consistent styling
-  - `commands.go`: Background command execution and silent processing coordination
-- **UI Package (`ui/`)**: Classic user interface and terminal interaction
-  - `display.go`: Color formatting and output display functions
-  - `interactive.go`: Classic interactive mode implementation with guided user experience
+  - `address.go`: Address object models, redundancy detection, and IP validation
+  - `config.go`: Configuration management structures
+  - `groups.go`: Address group models and membership structures
+  - `results.go`: Analysis result models, statistics, and cross-reference structures
+  - `rules.go`: Security rule and NAT rule models with address context detection
+- **Cache Package (`cache/`)**: Memory optimization and performance caching
+  - `memory_cache.go`: In-memory caching with TTL and automatic cleanup
+  - `pattern_cache.go`: Regex pattern caching and result optimization
 - **Utils Package (`utils/`)**: Utility functions and file operations
   - `utils.go`: Formatting, parsing, system utilities, and comprehensive IP address validation
   - `writer.go`: Structured YAML output generation and file writing
 - **Build System**: Makefile-based build system with dependency checking and global installation support
 
 ### Key Processing Flow
-1. **Memory-Optimized File Reading**: Loads entire configuration into memory for faster processing (processor/processor.go:63-203)
-2. **Compiled Regex Patterns**: Pre-compiled regex patterns for maximum performance (models/models.go:6-18)
-3. **Relationship Analysis**: Identifies direct and indirect relationships through address groups (processor/analysis.go)
-4. **Context Extraction**: Determines how addresses are used (source, destination, etc.) (processor/processor.go:256-309)
-5. **Redundant Address Cleanup**: Smart scope promotion and cleanup command generation (processor/cleanup.go)
-6. **Structured Output Generation**: Creates YAML-like output files with detailed analysis results (utils/writer.go)
+1. **Streaming XML Processing**: Parses XML configuration files with memory-efficient streaming (parser/xml_reader.go)
+2. **Element Recognition**: Identifies PAN configuration elements (addresses, groups, rules) using XML structure analysis
+3. **Relationship Analysis**: Maps direct and indirect relationships through address groups and rule references (processor/address_analyzer.go)
+4. **Context Extraction**: Determines how addresses are used (source, destination, group membership) with scope analysis
+5. **Redundant Address Detection**: Smart detection of duplicate IP addresses with scope optimization (processor/redundancy_analyzer.go)
+6. **Focused YAML Output**: Generates clean, nested YAML showing only target-relevant objects and references (utils/writer.go)
 
 ### Performance Optimizations
-- **In-Memory Processing**: Entire configuration file loaded into memory for faster analysis
-- **Pre-Compiled Regex**: All patterns compiled once at startup (models/models.go:23-37)
-- **Efficient Data Structures**: Uses native Go maps and slices for optimal performance (models/models.go:35-96)
-- **Progress Reporting**: Shows progress every 200K-500K lines for large files (processor/processor.go:120-137)
-- **Minimal Dependencies**: Uses only Go standard library for core processing (TUI uses Bubble Tea ecosystem)
+- **Streaming XML Processing**: Memory-efficient XML parsing for large configuration files
+- **Pattern Caching**: Compiled regex patterns cached for reuse (cache/pattern_cache.go)
+- **Memory Management**: TTL-based caching with automatic cleanup (cache/memory_cache.go)
+- **Concurrent Processing**: Safe concurrent access with mutex protection
+- **Focused Analysis**: Only processes and outputs target-relevant objects (no full config dumps)
 
 ### Data Structure Patterns
 - **Modular Design**: Clean separation of concerns across packages
@@ -93,28 +97,27 @@ make build
 - **Smart cleanup analysis** with scope promotion logic and usage pattern detection (processor/cleanup.go)
 
 ### Dependencies
-- **Runtime**: Minimal external dependencies - primarily Bubble Tea ecosystem for TUI
-- **Core Processing**: Uses only Go standard library for analysis logic
-- **TUI Framework**: Bubble Tea and Lipgloss for modern terminal interface
+- **Runtime**: Minimal external dependencies - only Go standard library for core processing
 - **Build Tools**: Go 1.23+ required (as specified in go.mod)
+- **Vendor Management**: All dependencies vendored for security and reproducible builds
 
 ### File Structure
-- **`main.go`**: CLI interface and orchestration with TUI/interactive mode routing (229 lines)
-- **`models/models.go`**: Data structures and type definitions (140 lines)
-- **`processor/processor.go`**: Core processing engine with silent mode support (406 lines)
-- **`processor/analysis.go`**: Advanced analysis algorithms (281 lines)
-- **`processor/cleanup.go`**: Redundant address cleanup logic (427 lines)
-- **`tui/tui.go`**: TUI application entry point (32 lines)
-- **`tui/models.go`**: TUI state management and navigation logic (777 lines)
-- **`tui/styles.go`**: Professional color scheme and styling (95 lines)
-- **`tui/commands.go`**: Background command execution coordination (250 lines)
-- **`ui/display.go`**: Classic terminal display and formatting (74 lines)
-- **`ui/interactive.go`**: Classic interactive mode implementation (305 lines)
-- **`utils/utils.go`**: Utility functions (87 lines)
-- **`utils/writer.go`**: Output generation and file writing (467 lines)
-- **`Makefile`**: Build system with installation and dependency management
-- **`go.mod`**: Go module definition with Bubble Tea dependencies
-- **`outputs/`**: Auto-created directory for all result files (YAML format)
+- **`main.go`**: CLI interface and orchestration
+- **`parser/`**: XML configuration parsing engine
+  - `xml_reader.go`: Streaming XML parser
+  - `xml_types.go`: PAN XML element type definitions
+  - `xml_utils.go`: XML processing utilities
+- **`processor/`**: Analysis engine
+  - `processor.go`: Main processing coordination
+  - `address_analyzer.go`: Address reference analysis
+  - `redundancy_analyzer.go`: Duplicate detection and cleanup
+  - `scope_analyzer.go`: Scope optimization
+- **`models/`**: Data structures (address.go, config.go, groups.go, results.go, rules.go)
+- **`cache/`**: Performance optimization (memory_cache.go, pattern_cache.go)
+- **`utils/`**: Utilities (utils.go, writer.go)
+- **`Makefile`**: Comprehensive build system with multi-platform support
+- **`go.mod`**: Go module definition with vendored dependencies
+- **`outputs/`**: Auto-created directory for YAML analysis results
 
 ### Output Format
 - **Main Results**: `{address}_results.yml` - Comprehensive analysis with structured sections

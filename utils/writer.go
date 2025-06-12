@@ -1,563 +1,437 @@
 package utils
 
 import (
-	"fmt"
 	"os"
-	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"palo-pan-parsing/models"
 )
 
-// WriteResults writes results to file in a structured YAML-like format
-func WriteResults(outputFile, addressName string, matchingLines []string, itemsDict *models.FormattedResults) error {
-	// Ensure outputs directory exists
-	if err := EnsureOutputsDir(); err != nil {
-		return fmt.Errorf("error creating outputs directory: %w", err)
-	}
+type YAMLWriter struct {
+	indent string
+}
 
-	// Prepend outputs/ to the file path if not already there
+func NewYAMLWriter() *YAMLWriter {
+	return &YAMLWriter{
+		indent: "  ",
+	}
+}
+
+func (w *YAMLWriter) WriteAnalysisResult(result *models.AnalysisResult, outputDir string) error {
+	if err := EnsureDirectory(outputDir); err != nil {
+		return err
+	}
+	
+	filename := w.generateResultFilename(result.TargetAddress, outputDir)
+	content := w.formatAnalysisResult(result)
+	
+	return w.writeToFile(filename, content)
+}
+
+func (w *YAMLWriter) formatAnalysisResult(result *models.AnalysisResult) string {
+	var sb strings.Builder
+	
+	sb.WriteString("# PAN Configuration Analysis Results\n")
+	sb.WriteString("# Generated: " + result.AnalysisTimestamp.Format(time.RFC3339) + "\n\n")
+	
+	sb.WriteString("analysis_info:\n")
+	sb.WriteString(w.indent + "target_address: " + result.TargetAddress + "\n")
+	sb.WriteString(w.indent + "config_file: " + result.ConfigFile + "\n")
+	sb.WriteString(w.indent + "analysis_timestamp: " + result.AnalysisTimestamp.Format(time.RFC3339) + "\n")
+	sb.WriteString(w.indent + "processing_time: " + FormatDuration(result.ProcessingTime) + "\n")
+	sb.WriteString(w.indent + "total_references: " + strconv.Itoa(result.TotalReferences) + "\n\n")
+	
+	w.writeStatistics(&sb, result.Statistics)
+	
+	if len(result.AddressObjects) > 0 {
+		w.writeAddressObjects(&sb, result.AddressObjects)
+	}
+	
+	if len(result.DirectReferences) > 0 {
+		w.writeDirectReferences(&sb, result.DirectReferences)
+	}
+	
+	if len(result.IndirectReferences) > 0 {
+		w.writeIndirectReferences(&sb, result.IndirectReferences)
+	}
+	
+	if len(result.AddressGroups) > 0 {
+		w.writeAddressGroups(&sb, result.AddressGroups)
+	}
+	
+	if len(result.GroupMemberships) > 0 {
+		w.writeGroupMemberships(&sb, result.GroupMemberships)
+	}
+	
+	if len(result.DirectSecurityRules) > 0 {
+		w.writeDirectSecurityRules(&sb, result.DirectSecurityRules)
+	}
+	
+	if len(result.IndirectSecurityRules) > 0 {
+		w.writeIndirectSecurityRules(&sb, result.IndirectSecurityRules)
+	}
+	
+	if len(result.RedundantAddresses) > 0 {
+		w.writeRedundantAddresses(&sb, result.RedundantAddresses)
+	}
+	
+	if len(result.DeviceGroups) > 0 {
+		w.writeDeviceGroups(&sb, result.DeviceGroups)
+	}
+	
+	if len(result.Scopes) > 0 {
+		w.writeScopes(&sb, result.Scopes)
+	}
+	
+	return sb.String()
+}
+
+func (w *YAMLWriter) writeStatistics(sb *strings.Builder, stats models.AnalysisStatistics) {
+	sb.WriteString("statistics:\n")
+	sb.WriteString(w.indent + "address_objects: " + strconv.Itoa(stats.AddressObjects) + "\n")
+	sb.WriteString(w.indent + "security_rules: " + strconv.Itoa(stats.SecurityRules) + "\n")
+	sb.WriteString(w.indent + "nat_rules: " + strconv.Itoa(stats.NATRules) + "\n")
+	sb.WriteString(w.indent + "address_groups: " + strconv.Itoa(stats.AddressGroups) + "\n")
+	sb.WriteString(w.indent + "direct_references: " + strconv.Itoa(stats.DirectReferences) + "\n")
+	sb.WriteString(w.indent + "indirect_references: " + strconv.Itoa(stats.IndirectReferences) + "\n")
+	sb.WriteString(w.indent + "redundant_addresses: " + strconv.Itoa(stats.RedundantAddresses) + "\n")
+	sb.WriteString(w.indent + "device_groups: " + strconv.Itoa(stats.DeviceGroups) + "\n\n")
+}
+
+func (w *YAMLWriter) writeDirectReferences(sb *strings.Builder, refs []models.AddressReference) {
+	sb.WriteString("direct_references:\n")
+	for _, ref := range refs {
+		sb.WriteString(w.indent + "- object_name: " + ref.ObjectName + "\n")
+		sb.WriteString(w.indent + "  source_type: " + ref.SourceType + "\n")
+		sb.WriteString(w.indent + "  source_name: " + ref.SourceName + "\n")
+		sb.WriteString(w.indent + "  context: " + ref.Context + "\n")
+		if ref.DeviceGroup != "" {
+			sb.WriteString(w.indent + "  device_group: " + ref.DeviceGroup + "\n")
+		}
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeIndirectReferences(sb *strings.Builder, refs []models.GroupReference) {
+	sb.WriteString("indirect_references:\n")
+	for _, ref := range refs {
+		sb.WriteString(w.indent + "- group_name: " + ref.GroupName + "\n")
+		sb.WriteString(w.indent + "  source_type: " + ref.SourceType + "\n")
+		sb.WriteString(w.indent + "  source_name: " + ref.SourceName + "\n")
+		sb.WriteString(w.indent + "  context: " + ref.Context + "\n")
+		if ref.DeviceGroup != "" {
+			sb.WriteString(w.indent + "  device_group: " + ref.DeviceGroup + "\n")
+		}
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeDirectSecurityRules(sb *strings.Builder, rules []models.SecurityRule) {
+	sb.WriteString("direct_security_rules:\n")
+	for _, rule := range rules {
+		sb.WriteString(w.indent + rule.Name + ":\n")
+		sb.WriteString(w.indent + w.indent + "scope: " + rule.Scope + "\n")
+		if rule.DeviceGroup != "" {
+			sb.WriteString(w.indent + w.indent + "device_group: " + rule.DeviceGroup + "\n")
+		}
+		sb.WriteString(w.indent + w.indent + "action: " + rule.Action + "\n")
+		
+		w.writeNestedStringArray(sb, "from", rule.From)
+		w.writeNestedStringArray(sb, "to", rule.To)
+		w.writeNestedStringArray(sb, "source", rule.Source)
+		w.writeNestedStringArray(sb, "destination", rule.Destination)
+		w.writeNestedStringArray(sb, "application", rule.Application)
+		w.writeNestedStringArray(sb, "service", rule.Service)
+		
+		if rule.Description != "" {
+			sb.WriteString(w.indent + w.indent + "description: " + rule.Description + "\n")
+		}
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeIndirectSecurityRules(sb *strings.Builder, rules []models.SecurityRule) {
+	sb.WriteString("indirect_security_rules:\n")
+	for _, rule := range rules {
+		sb.WriteString(w.indent + rule.Name + ":\n")
+		sb.WriteString(w.indent + w.indent + "scope: " + rule.Scope + "\n")
+		if rule.DeviceGroup != "" {
+			sb.WriteString(w.indent + w.indent + "device_group: " + rule.DeviceGroup + "\n")
+		}
+		sb.WriteString(w.indent + w.indent + "action: " + rule.Action + "\n")
+		
+		w.writeNestedStringArray(sb, "from", rule.From)
+		w.writeNestedStringArray(sb, "to", rule.To)
+		w.writeNestedStringArray(sb, "source", rule.Source)
+		w.writeNestedStringArray(sb, "destination", rule.Destination)
+		w.writeNestedStringArray(sb, "application", rule.Application)
+		w.writeNestedStringArray(sb, "service", rule.Service)
+		
+		if rule.Description != "" {
+			sb.WriteString(w.indent + w.indent + "description: " + rule.Description + "\n")
+		}
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeNestedStringArray(sb *strings.Builder, fieldName string, values []string) {
+	if len(values) > 0 {
+		sb.WriteString(w.indent + w.indent + fieldName + ":\n")
+		for _, value := range values {
+			sb.WriteString(w.indent + w.indent + "  - " + value + "\n")
+		}
+	}
+}
+
+func (w *YAMLWriter) writeRedundantAddresses(sb *strings.Builder, pairs []models.RedundantAddressPair) {
+	sb.WriteString("redundant_addresses:\n")
+	for _, pair := range pairs {
+		sb.WriteString(w.indent + "- source_address: " + pair.SourceAddress + "\n")
+		sb.WriteString(w.indent + "  duplicate_address: " + pair.DuplicateAddress + "\n")
+		sb.WriteString(w.indent + "  ip_value: " + pair.IPValue + "\n")
+		sb.WriteString(w.indent + "  source_scope: " + pair.SourceScope + "\n")
+		sb.WriteString(w.indent + "  duplicate_scope: " + pair.DuplicateScope + "\n")
+		w.writeStringArray(sb, "device_groups", pair.DeviceGroups)
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeStringArray(sb *strings.Builder, fieldName string, values []string) {
+	if len(values) > 0 {
+		sb.WriteString(w.indent + "  " + fieldName + ":\n")
+		for _, value := range values {
+			sb.WriteString(w.indent + "    - " + value + "\n")
+		}
+	}
+}
+
+// Other required functions (simplified versions)
+func (w *YAMLWriter) writeAddressObjects(sb *strings.Builder, addresses []models.AddressObject) {
+	sb.WriteString("address_objects:\n")
+	for _, addr := range addresses {
+		sb.WriteString(w.indent + "- name: " + addr.Name + "\n")
+		if addr.IPNetmask != "" {
+			sb.WriteString(w.indent + "  ip_netmask: " + addr.IPNetmask + "\n")
+		}
+		if addr.IPRange != "" {
+			sb.WriteString(w.indent + "  ip_range: " + addr.IPRange + "\n")
+		}
+		if addr.FQDN != "" {
+			sb.WriteString(w.indent + "  fqdn: " + addr.FQDN + "\n")
+		}
+		sb.WriteString(w.indent + "  scope: " + addr.Scope + "\n")
+		if addr.DeviceGroup != "" {
+			sb.WriteString(w.indent + "  device_group: " + addr.DeviceGroup + "\n")
+		}
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeAddressGroups(sb *strings.Builder, groups []models.AddressGroup) {
+	sb.WriteString("address_groups:\n")
+	for _, group := range groups {
+		sb.WriteString(w.indent + "- name: " + group.Name + "\n")
+		sb.WriteString(w.indent + "  scope: " + group.Scope + "\n")
+		w.writeStringArray(sb, "members", group.Members)
+		w.writeStringArray(sb, "static_members", group.StaticMembers)
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeGroupMemberships(sb *strings.Builder, memberships []models.GroupMembership) {
+	sb.WriteString("group_memberships:\n")
+	for _, membership := range memberships {
+		sb.WriteString(w.indent + "- group_name: " + membership.GroupName + "\n")
+		sb.WriteString(w.indent + "  member_name: " + membership.MemberName + "\n")
+		sb.WriteString(w.indent + "  member_type: " + membership.MemberType + "\n")
+		sb.WriteString(w.indent + "  group_scope: " + membership.GroupScope + "\n")
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeDeviceGroups(sb *strings.Builder, groups []string) {
+	sb.WriteString("device_groups:\n")
+	for _, group := range groups {
+		sb.WriteString(w.indent + "- " + group + "\n")
+	}
+	sb.WriteString("\n")
+}
+
+func (w *YAMLWriter) writeScopes(sb *strings.Builder, scopes []string) {
+	sb.WriteString("scopes:\n")
+	for _, scope := range scopes {
+		sb.WriteString(w.indent + "- " + scope + "\n")
+	}
+	sb.WriteString("\n")
+}
+
+// Helper functions
+func (w *YAMLWriter) generateResultFilename(targetAddress, outputDir string) string {
+	return outputDir + "/" + SanitizeFilename(targetAddress) + "_results.yml"
+}
+
+func (w *YAMLWriter) writeToFile(filename, content string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	
+	_, err = file.WriteString(content)
+	return err
+}
+
+// WriteGroupCommands writes address group commands in new nested format
+func (w *YAMLWriter) WriteGroupCommands(outputFile, originalAddress, newAddressName, ipAddress string, commands []string, addressGroups []models.AddressGroup) error {
+	if err := EnsureDirectory("outputs"); err != nil {
+		return err
+	}
+	
 	if !strings.HasPrefix(outputFile, "outputs/") {
 		outputFile = "outputs/" + outputFile
 	}
-
-	file, err := os.Create(outputFile)
-	if err != nil {
-		return fmt.Errorf("error creating output file: %w", err)
-	}
-	defer file.Close()
-
-	// Enhanced header with metadata
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# %s Analysis Report %s\n", models.AppName, models.Version)
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# Target Address Object: %s\n", addressName)
-	fmt.Fprintf(file, "# Configuration Lines Found: %d\n", len(matchingLines))
-
-	totalRelationships := len(itemsDict.DeviceGroups) + len(itemsDict.DirectSecurityRules) +
-		len(itemsDict.IndirectSecurityRules) + len(itemsDict.AddressGroups) +
-		len(itemsDict.NATRules) + len(itemsDict.ServiceGroups) + len(itemsDict.RedundantAddresses)
-	fmt.Fprintf(file, "# Total Relationships: %d\n", totalRelationships)
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
-
-	// Generic process explanation section
-	fmt.Fprintf(file, "# PAN CONFIGURATION ANALYSIS PROCESS\n")
-	fmt.Fprintf(file, "Overview of how the address object analysis works:\n")
-	fmt.Fprintf(file, "---\n")
-	fmt.Fprintf(file, "1. CONFIGURATION PARSING: Tool loads and parses the entire PAN configuration file\n")
-	fmt.Fprintf(file, "2. PATTERN MATCHING: Searches for all references to the target address object using:\n")
-	fmt.Fprintf(file, "   - Direct name matching in configuration lines\n")
-	fmt.Fprintf(file, "   - Regex patterns for different PAN configuration contexts\n")
-	fmt.Fprintf(file, "3. RELATIONSHIP DISCOVERY: Identifies how the address is used in:\n")
-	fmt.Fprintf(file, "   - Device Groups (scope and hierarchy)\n")
-	fmt.Fprintf(file, "   - Security Rules (direct source/destination references)\n")
-	fmt.Fprintf(file, "   - Address Groups (static membership)\n")
-	fmt.Fprintf(file, "   - NAT Rules (translation policies)\n")
-	fmt.Fprintf(file, "   - Service Groups (if applicable)\n")
-	fmt.Fprintf(file, "4. INDIRECT ANALYSIS: Traces indirect references through address groups\n")
-	fmt.Fprintf(file, "5. REDUNDANCY DETECTION: Identifies duplicate addresses with same IP/netmask\n")
-	fmt.Fprintf(file, "6. STRUCTURED REPORTING: Organizes findings into categorized sections\n")
-	fmt.Fprintf(file, "---\n\n")
-
-	// Matching configuration lines section
-	fmt.Fprintf(file, "# MATCHING CONFIGURATION LINES\n")
-	fmt.Fprintf(file, "Found [%d] lines containing '%s':\n", len(matchingLines), addressName)
-	fmt.Fprintf(file, "---\n")
-	if len(matchingLines) > 0 {
-		for i, line := range matchingLines {
-			fmt.Fprintf(file, "%d.%s\n", i+1, line)
-		}
-	} else {
-		fmt.Fprintf(file, "No matching lines found\n")
-	}
-	fmt.Fprintf(file, "---\n")
-
-	// Category sections
-
-	// Write each category
-	writeCategory(file, "Device Groups", itemsDict.DeviceGroups)
-	writeSecurityRulesCategory(file, "Direct Security Rules", itemsDict.DirectSecurityRules, matchingLines)
-	writeSecurityRulesCategory(file, "Indirect Security Rules (via Address Groups)", itemsDict.IndirectSecurityRules, matchingLines)
-	writeAddressGroupsCategory(file, addressName, itemsDict.AddressGroups)
-	writeCategory(file, "NAT Rules", itemsDict.NATRules)
-	writeCategory(file, "Service Groups", itemsDict.ServiceGroups)
-	writeRedundantAddressesCategory(file, itemsDict.RedundantAddresses)
-
-	// Add footer
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# Analysis Complete\n")
-	fmt.Fprintf(file, "# Generated by: %s Tool %s\n", models.AppName, models.Version)
-	fmt.Fprintf(file, "# Advanced Palo Alto Networks Configuration Analysis\n")
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-
-	return nil
-}
-
-func writeCategory(file *os.File, category string, items []string) {
-	count := len(items)
-	fmt.Fprintf(file, "# %s\n", strings.ToUpper(category))
-	fmt.Fprintf(file, "Found [%d] item", count)
-	if count != 1 {
-		fmt.Fprintf(file, "s")
-	}
-	fmt.Fprintf(file, ":\n")
-	fmt.Fprintf(file, "---\n")
-	if count > 0 {
-		for i, item := range items {
-			fmt.Fprintf(file, "%d. %s\n", i+1, item)
-		}
-	} else {
-		fmt.Fprintf(file, "None discovered\n")
-	}
-	fmt.Fprintf(file, "---\n")
-}
-
-func writeSecurityRulesCategory(file *os.File, category string, items []string, matchingLines []string) {
-	count := len(items)
-	fmt.Fprintf(file, "# %s\n", strings.ToUpper(category))
-	fmt.Fprintf(file, "Found [%d] item", count)
-	if count != 1 {
-		fmt.Fprintf(file, "s")
-	}
-	fmt.Fprintf(file, ":\n")
-	fmt.Fprintf(file, "---\n")
-
-	if count > 0 {
-		// Group rules by device group
-		rulesByDG := make(map[string][]models.RuleContext)
-		for _, item := range items {
-			parts := strings.Split(item, " (Device Group: ")
-			if len(parts) == 2 {
-				ruleName := parts[0]
-				dgPart := parts[1]
-
-				// Remove only the final closing parenthesis
-				dgPart = strings.TrimSuffix(dgPart, ")")
-
-				var deviceGroup, context string
-				if strings.Contains(dgPart, ", ") {
-					dgAndContext := strings.SplitN(dgPart, ", ", 2)
-					deviceGroup = dgAndContext[0]
-					context = dgAndContext[1]
-				} else {
-					deviceGroup = dgPart
-				}
-
-				rulesByDG[deviceGroup] = append(rulesByDG[deviceGroup], models.RuleContext{
-					Name:    ruleName,
-					Context: context,
-				})
-			}
-		}
-
-		// Sort device groups for consistent output
-		var deviceGroups []string
-		for dg := range rulesByDG {
-			deviceGroups = append(deviceGroups, dg)
-		}
-		sort.Strings(deviceGroups)
-
-		// Create numbered list similar to address groups format
-		itemCount := 1
-		for _, dg := range deviceGroups {
-			rules := rulesByDG[dg]
-			for _, rule := range rules {
-				fmt.Fprintf(file, "%d. %s (device-group - %s):\n", itemCount, rule.Name, dg)
-
-				// Find the original command line for this rule
-				var commandLine string
-				for _, line := range matchingLines {
-					if strings.Contains(line, "security") && strings.Contains(line, "rules") &&
-						strings.Contains(line, rule.Name) && strings.Contains(line, dg) {
-						commandLine = line
-						break
-					}
-				}
-
-				if commandLine != "" {
-					fmt.Fprintf(file, "   └─ Command: %s\n", commandLine)
-				}
-
-				if rule.Context != "" {
-					fmt.Fprintf(file, "   └─ Context: %s\n", rule.Context)
-				} else {
-					fmt.Fprintf(file, "   └─ Context: direct reference\n")
-				}
-				fmt.Fprintf(file, "   └─ Device Group: %s\n", dg)
-				itemCount++
-			}
-		}
-	} else {
-		fmt.Fprintf(file, "None discovered\n")
-	}
-	fmt.Fprintf(file, "---\n")
-}
-
-func writeAddressGroupsCategory(file *os.File, addressName string, groups []models.AddressGroup) {
-	count := len(groups)
-	fmt.Fprintf(file, "# ADDRESS GROUPS\n")
-	fmt.Fprintf(file, "Found [%d] items containing '%s':\n", count, addressName)
-	fmt.Fprintf(file, "---\n")
-	if count > 0 {
-		for i, group := range groups {
-			if group.Context == "shared" {
-				fmt.Fprintf(file, "%d. %s (shared scope):\n", i+1, group.Name)
-				fmt.Fprintf(file, "   └─ Command: set shared address-group %s static %s\n", group.Name, group.Definition)
-				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
-			} else {
-				fmt.Fprintf(file, "%d. %s (device-group - %s):\n", i+1, group.Name, group.DeviceGroup)
-				fmt.Fprintf(file, "   └─ Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
-				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
-			}
-		}
-	} else {
-		fmt.Fprintf(file, "None discovered\n")
-	}
-	fmt.Fprintf(file, "---\n")
-}
-
-func writeRedundantAddressesCategory(file *os.File, addresses []models.RedundantAddress) {
-	count := len(addresses)
-	fmt.Fprintf(file, "# REDUNDANT ADDRESSES\n")
-	fmt.Fprintf(file, "Found [%d] items with identical ip/netmask:\n", count)
-	fmt.Fprintf(file, "---\n")
-	if count > 0 {
-		for i, addr := range addresses {
-			fmt.Fprintf(file, "%d. %s:\n", i+1, addr.Name)
-			fmt.Fprintf(file, "   └─ IP/Netmask: %s\n", addr.IPNetmask)
-			fmt.Fprintf(file, "   └─ Scope: %s\n", addr.DeviceGroup)
-			fmt.Fprintf(file, "   └─ Note: Same IP as target address - potential duplicate\n")
-		}
-	} else {
-		fmt.Fprintf(file, "None discovered\n")
-	}
-	fmt.Fprintf(file, "---\n")
-}
-
-// generateAddressCreationCommands generates commands to create address objects using smart scope selection
-func generateAddressCreationCommands(newAddressName, ipAddress string, addressGroups []models.AddressGroup) []string {
-	var commands []string
-	hasSharedGroups := false
-	deviceGroups := make(map[string]bool)
-
-	// Analyze group scopes to determine optimal address object placement
-	for _, group := range addressGroups {
-		if group.Context == "shared" {
-			hasSharedGroups = true
-		} else if group.Context == "device-group" {
-			deviceGroups[group.DeviceGroup] = true
-		}
-	}
-
-	// Smart scope selection logic:
-	// 1. If ANY groups are shared scope -> create in shared scope (most efficient)
-	// 2. If ALL groups are in same device-group -> create in that device-group
-	// 3. If groups span multiple device-groups -> create in shared scope for efficiency
-
-	if hasSharedGroups || len(deviceGroups) > 1 {
-		// Create in shared scope - can be referenced by any device-group
-		commands = append(commands, fmt.Sprintf("set shared address %s ip-netmask %s", newAddressName, ipAddress))
-	} else if len(deviceGroups) == 1 {
-		// All groups are in same device-group - create there for scope isolation
-		for deviceGroup := range deviceGroups {
-			commands = append(commands, fmt.Sprintf("set device-group %s address %s ip-netmask %s", deviceGroup, newAddressName, ipAddress))
-			break // Only one device group
-		}
-	}
-
-	return commands
-}
-
-// GenerateAddressCreationCommandsTest is a test helper function to verify smart scope logic
-func GenerateAddressCreationCommandsTest(newAddressName, ipAddress string, addressGroups []models.AddressGroup) []string {
-	return generateAddressCreationCommands(newAddressName, ipAddress, addressGroups)
-}
-
-// WriteAddressGroupCommands writes generated commands to a YAML file
-func WriteAddressGroupCommands(outputFile, originalAddress, newAddressName, ipAddress string, commands []string, addressGroups []models.AddressGroup) error {
-	// Ensure outputs directory exists
-	if err := EnsureOutputsDir(); err != nil {
-		return fmt.Errorf("error creating outputs directory: %w", err)
-	}
-
-	// Prepend outputs/ to the file path if not already there
-	if !strings.HasPrefix(outputFile, "outputs/") {
-		outputFile = "outputs/" + outputFile
-	}
-
-	file, err := os.Create(outputFile)
-	if err != nil {
-		return fmt.Errorf("error creating commands file: %w", err)
-	}
-	defer file.Close()
-
-	// Enhanced header with metadata
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# %s Address Group Commands Generator %s\n", models.AppName, models.Version)
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# Original Address Object: %s\n", originalAddress)
-	fmt.Fprintf(file, "# New Address Object: %s\n", newAddressName)
-	fmt.Fprintf(file, "# IP Address: %s\n", ipAddress)
-	fmt.Fprintf(file, "# Address Groups Found: %d\n", len(addressGroups))
-	fmt.Fprintf(file, "# Commands Generated: %d\n", len(commands))
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
-
-	// Generic process explanation section
-	fmt.Fprintf(file, "# ADDRESS GROUP COMMAND GENERATION PROCESS\n")
-	fmt.Fprintf(file, "Overview of how address group commands are generated:\n")
-	fmt.Fprintf(file, "---\n")
-	fmt.Fprintf(file, "1. ADDRESS ANALYSIS: Tool searches for all address groups containing the original address\n")
-	fmt.Fprintf(file, "2. SCOPE DISCOVERY: Identifies which scopes (shared/device-group) the groups exist in\n")
-	fmt.Fprintf(file, "3. SMART SCOPE SELECTION: Determines optimal scope for creating new address object:\n")
-	fmt.Fprintf(file, "   - If ANY groups are in shared scope → create address in shared scope\n")
-	fmt.Fprintf(file, "   - If ALL groups are in same device-group → create address in that device-group\n")
-	fmt.Fprintf(file, "   - If groups span multiple device-groups → create address in shared scope\n")
-	fmt.Fprintf(file, "4. COMMAND GENERATION: Creates two types of commands:\n")
-	fmt.Fprintf(file, "   - Address object creation commands (STEP 1)\n")
-	fmt.Fprintf(file, "   - Address group membership commands (STEP 2)\n")
-	fmt.Fprintf(file, "5. EFFICIENCY OPTIMIZATION: Minimizes command count and maximizes reusability\n")
-	fmt.Fprintf(file, "---\n\n")
-
-	// Usage instructions section (moved before source groups)
-	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
-	fmt.Fprintf(file, "Found [4] steps for applying address group commands:\n")
-	fmt.Fprintf(file, "---\n")
-	fmt.Fprintf(file, "1. REVIEW: Verify the IP address and new address name meet your requirements\n")
-	fmt.Fprintf(file, "2. COPY COMMANDS: Copy all commands from the 'GENERATED CONFIGURATION COMMANDS' section\n")
-	fmt.Fprintf(file, "3. EXECUTE IN ORDER: Paste commands into PAN interface/CLI in the order shown (STEP 1 first)\n")
-	fmt.Fprintf(file, "4. COMMIT: Apply changes to activate the new address objects and group memberships\n")
-	fmt.Fprintf(file, "---\n\n")
-
-	// Address groups details section in results.yml style
-	fmt.Fprintf(file, "# SOURCE ADDRESS GROUPS\n")
-	fmt.Fprintf(file, "Found [%d] address group", len(addressGroups))
-	if len(addressGroups) != 1 {
-		fmt.Fprintf(file, "s")
-	}
-	fmt.Fprintf(file, " containing '%s':\n", originalAddress)
-	fmt.Fprintf(file, "---\n")
-
-	if len(addressGroups) > 0 {
-		for _, group := range addressGroups {
-			if group.Context == "shared" {
-				fmt.Fprintf(file, "%s (shared scope):\n", group.Name)
-				fmt.Fprintf(file, "   └─ Original Command: set shared address-group %s static %s\n", group.Name, group.Definition)
-				fmt.Fprintf(file, "   └─ New Command: set shared address-group %s static %s\n", group.Name, newAddressName)
-				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
-			} else {
-				fmt.Fprintf(file, "%s (device-group - %s):\n", group.Name, group.DeviceGroup)
-				fmt.Fprintf(file, "   └─ Original Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, group.Definition)
-				fmt.Fprintf(file, "   └─ New Command: set device-group %s address-group %s static %s\n", group.DeviceGroup, group.Name, newAddressName)
-				fmt.Fprintf(file, "   └─ Members: %s\n", group.Definition)
-			}
-		}
-	} else {
-		fmt.Fprintf(file, "None discovered\n")
-	}
-	fmt.Fprintf(file, "---\n")
-
-	// Generate address object creation commands based on group scopes
-	addressCreationCommands := generateAddressCreationCommands(newAddressName, ipAddress, addressGroups)
-	totalCommands := len(addressCreationCommands) + len(commands)
-
-	// Commands section in results.yml style
-	fmt.Fprintf(file, "# GENERATED CONFIGURATION COMMANDS\n")
-	fmt.Fprintf(file, "Found [%d] total command", totalCommands)
-	if totalCommands != 1 {
-		fmt.Fprintf(file, "s")
-	}
-	fmt.Fprintf(file, " for complete '%s' setup and group membership:\n", newAddressName)
-	fmt.Fprintf(file, "---\n")
-
-	// Step 1: Address object creation commands
-	if len(addressCreationCommands) > 0 {
-		fmt.Fprintf(file, "# STEP 1: Create Address Objects (%d commands)\n", len(addressCreationCommands))
-		fmt.Fprintf(file, "# NOTE: Using provided IP address %s\n", ipAddress)
-		for _, command := range addressCreationCommands {
-			fmt.Fprintf(file, "%s\n", command)
-		}
-		fmt.Fprintf(file, "---\n")
-	}
-
-	// Step 2: Address group membership commands
+	
+	var sb strings.Builder
+	
+	sb.WriteString("# PAN Address Group Commands\n")
+	sb.WriteString("# Generated: " + time.Now().Format(time.RFC3339) + "\n\n")
+	
+	sb.WriteString("analysis_info:\n")
+	sb.WriteString(w.indent + "original_address: " + originalAddress + "\n")
+	sb.WriteString(w.indent + "new_address: " + newAddressName + "\n")
+	sb.WriteString(w.indent + "ip_address: " + ipAddress + "\n")
+	sb.WriteString(w.indent + "groups_found: " + strconv.Itoa(len(addressGroups)) + "\n")
+	sb.WriteString(w.indent + "commands_generated: " + strconv.Itoa(len(commands)) + "\n\n")
+	
+	w.writeAddressGroups(&sb, addressGroups)
+	
 	if len(commands) > 0 {
-		fmt.Fprintf(file, "# STEP 2: Add to Address Groups (%d commands)\n", len(commands))
-		for _, command := range commands {
-			fmt.Fprintf(file, "%s\n", command)
+		sb.WriteString("generated_commands:\n")
+		for _, cmd := range commands {
+			sb.WriteString(w.indent + "- " + cmd + "\n")
 		}
-	} else {
-		fmt.Fprintf(file, "# STEP 2: Add to Address Groups\n")
-		fmt.Fprintf(file, "None generated\n")
+		sb.WriteString("\n")
 	}
-	fmt.Fprintf(file, "---\n")
-
-	// Add footer
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# Commands Generation Complete\n")
-	fmt.Fprintf(file, "# Generated by: %s Tool %s\n", models.AppName, models.Version)
-	fmt.Fprintf(file, "# Advanced Palo Alto Networks Configuration Analysis\n")
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-
-	return nil
+	
+	return w.writeToFile(outputFile, sb.String())
 }
 
-// WriteCleanupCommands writes redundant address cleanup commands to file in a structured YAML-like format
-func WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) error {
-	// Ensure outputs directory exists
-	if err := EnsureOutputsDir(); err != nil {
-		return fmt.Errorf("error creating outputs directory: %w", err)
+// WriteCleanupCommands writes cleanup commands in new nested format
+func (w *YAMLWriter) WriteCleanupCommands(outputFile string, commands *models.CleanupCommands) error {
+	if err := EnsureDirectory("outputs"); err != nil {
+		return err
 	}
-
-	// Prepend outputs/ to the file path if not already there
+	
 	if !strings.HasPrefix(outputFile, "outputs/") {
 		outputFile = "outputs/" + outputFile
 	}
-
-	file, err := os.Create(outputFile)
-	if err != nil {
-		return fmt.Errorf("error creating cleanup commands file: %w", err)
+	
+	var sb strings.Builder
+	
+	sb.WriteString("# PAN Cleanup Commands\n")
+	sb.WriteString("# Generated: " + time.Now().Format(time.RFC3339) + "\n\n")
+	
+	sb.WriteString("cleanup_info:\n")
+	sb.WriteString(w.indent + "rule_updates: " + strconv.Itoa(len(commands.RuleUpdates)) + "\n")
+	sb.WriteString(w.indent + "group_updates: " + strconv.Itoa(len(commands.GroupUpdates)) + "\n")
+	sb.WriteString(w.indent + "object_creation: " + strconv.Itoa(len(commands.ObjectCreation)) + "\n")
+	sb.WriteString(w.indent + "object_deletion: " + strconv.Itoa(len(commands.ObjectDeletion)) + "\n\n")
+	
+	if len(commands.RuleUpdates) > 0 {
+		sb.WriteString("rule_updates:\n")
+		for _, cmd := range commands.RuleUpdates {
+			sb.WriteString(w.indent + "- " + cmd + "\n")
+		}
+		sb.WriteString("\n")
 	}
-	defer file.Close()
-
-	// Header in results.yml style
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# %s Redundant Address Cleanup Commands %s\n", models.AppName, models.Version)
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# Target Address: %s\n", commands.TargetAddress)
-	fmt.Fprintf(file, "# Redundant Addresses: %s\n", strings.Join(commands.RedundantAddresses, ", "))
-	fmt.Fprintf(file, "# Total Commands: %d\n", commands.TotalCommands)
-	fmt.Fprintf(file, "# WARNING: Test in non-production environment first!\n")
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n\n")
-
-	// Generic process explanation section
-	fmt.Fprintf(file, "# REDUNDANT ADDRESS CLEANUP PROCESS\n")
-	fmt.Fprintf(file, "Overview of how redundant address cleanup works:\n")
-	fmt.Fprintf(file, "---\n")
-	fmt.Fprintf(file, "1. ANALYSIS: The tool identifies addresses with identical IP/netmask values\n")
-	fmt.Fprintf(file, "2. TARGET SELECTION: One address is chosen as the 'target' to keep (usually most used)\n")
-	fmt.Fprintf(file, "3. DEPENDENCY MAPPING: All references to redundant addresses are found in:\n")
-	fmt.Fprintf(file, "   - Address Groups (static membership lists)\n")
-	fmt.Fprintf(file, "   - Security Rules (source/destination/user fields)\n")
-	fmt.Fprintf(file, "   - NAT Rules (source/destination translation fields)\n")
-	fmt.Fprintf(file, "4. SCOPE OPTIMIZATION: Target address scope is promoted if needed:\n")
-	fmt.Fprintf(file, "   - If redundant addresses exist across multiple device-groups\n")
-	fmt.Fprintf(file, "   - Target is promoted to 'shared' scope for universal access\n")
-	fmt.Fprintf(file, "5. SAFE REPLACEMENT: All references are updated to use target address\n")
-	fmt.Fprintf(file, "6. CLEANUP: Redundant address definitions are removed (done LAST)\n")
-	fmt.Fprintf(file, "---\n\n")
-
-	// Usage instructions section (moved before steps)
-	fmt.Fprintf(file, "# USAGE INSTRUCTIONS\n")
-	fmt.Fprintf(file, "Found [5] critical steps for safe cleanup execution:\n")
-	fmt.Fprintf(file, "---\n")
-	if commands.TotalCommands == 0 {
-		fmt.Fprintf(file, "No cleanup commands generated - redundant addresses may not be in active use\n")
-	} else {
-		fmt.Fprintf(file, "1. BACKUP: Save current configuration before making any changes\n")
-		fmt.Fprintf(file, "2. TEST ENVIRONMENT: Execute ALL commands in non-production environment first\n")
-		fmt.Fprintf(file, "3. EXECUTE IN ORDER: Run cleanup steps in the exact order shown below\n")
-		fmt.Fprintf(file, "4. DEFINITIONS LAST: Always delete address definitions LAST to avoid broken references\n")
-		fmt.Fprintf(file, "5. COMMIT & VERIFY: Commit changes and verify no policy compilation errors\n")
+	
+	if len(commands.GroupUpdates) > 0 {
+		sb.WriteString("group_updates:\n")
+		for _, cmd := range commands.GroupUpdates {
+			sb.WriteString(w.indent + "- " + cmd + "\n")
+		}
+		sb.WriteString("\n")
 	}
-	fmt.Fprintf(file, "---\n\n")
-
-	// Group commands by section
-	commandsBySection := make(map[string][]models.CleanupCommand)
-	for _, command := range commands.Commands {
-		commandsBySection[command.Section] = append(commandsBySection[command.Section], command)
+	
+	if len(commands.ObjectCreation) > 0 {
+		sb.WriteString("object_creation:\n")
+		for _, cmd := range commands.ObjectCreation {
+			sb.WriteString(w.indent + "- " + cmd + "\n")
+		}
+		sb.WriteString("\n")
 	}
-
-	// Define section order
-	sectionOrder := []string{"target_creation", "address_groups", "security_rules", "nat_rules", "definitions"}
-
-	// Write step descriptions at the top
-	stepNum := 1
-	for _, section := range sectionOrder {
-		sectionCommands, exists := commandsBySection[section]
-		if !exists || len(sectionCommands) == 0 {
-			continue
+	
+	if len(commands.ObjectDeletion) > 0 {
+		sb.WriteString("object_deletion:\n")
+		for _, cmd := range commands.ObjectDeletion {
+			sb.WriteString(w.indent + "- " + cmd + "\n")
 		}
-
-		// Get section title for steps
-		var sectionTitle string
-		switch section {
-		case "target_creation":
-			sectionTitle = fmt.Sprintf("STEP %d: CREATE TARGET ADDRESS (if needed)", stepNum)
-		case "address_groups":
-			sectionTitle = fmt.Sprintf("STEP %d: UPDATE ADDRESS GROUPS", stepNum)
-		case "security_rules":
-			sectionTitle = fmt.Sprintf("STEP %d: UPDATE SECURITY RULES", stepNum)
-		case "nat_rules":
-			sectionTitle = fmt.Sprintf("STEP %d: UPDATE NAT RULES", stepNum)
-		case "definitions":
-			sectionTitle = fmt.Sprintf("STEP %d: REMOVE REDUNDANT DEFINITIONS (do last)", stepNum)
-		default:
-			sectionTitle = fmt.Sprintf("STEP %d: %s", stepNum, strings.ToUpper(section))
-		}
-
-		fmt.Fprintf(file, "# %s\n", sectionTitle)
-		fmt.Fprintf(file, "Found [%d] command", len(sectionCommands))
-		if len(sectionCommands) != 1 {
-			fmt.Fprintf(file, "s")
-		}
-		fmt.Fprintf(file, ":\n")
-		fmt.Fprintf(file, "---\n")
-
-		for _, command := range sectionCommands {
-			fmt.Fprintf(file, "%s:\n", command.Description)
-			fmt.Fprintf(file, "   └─ Command: %s\n", command.Command)
-			fmt.Fprintf(file, "   └─ Section: %s\n", command.Section)
-		}
-		fmt.Fprintf(file, "---\n")
-		stepNum++
+		sb.WriteString("\n")
 	}
-
-
-	// Write actual commands at the bottom in results.yml style
-	stepNum = 1
-	for _, section := range sectionOrder {
-		sectionCommands, exists := commandsBySection[section]
-		if !exists || len(sectionCommands) == 0 {
-			continue
-		}
-
-		// Get section title for commands
-		var sectionTitle string
-		switch section {
-		case "target_creation":
-			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
-		case "address_groups":
-			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
-		case "security_rules":
-			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
-		case "nat_rules":
-			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
-		case "definitions":
-			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
-		default:
-			sectionTitle = fmt.Sprintf("STEP %d COMMANDS", stepNum)
-		}
-
-		fmt.Fprintf(file, "# %s\n", sectionTitle)
-		fmt.Fprintf(file, "Found [%d] command", len(sectionCommands))
-		if len(sectionCommands) != 1 {
-			fmt.Fprintf(file, "s")
-		}
-		fmt.Fprintf(file, " to execute:\n")
-		fmt.Fprintf(file, "---\n")
-		for _, command := range sectionCommands {
-			fmt.Fprintf(file, "%s\n", command.Command)
-		}
-		fmt.Fprintf(file, "---\n")
-		stepNum++
+	
+	return w.writeToFile(outputFile, sb.String())
+}
+// WriteMultiAddressResult writes multiple address analysis results
+func (w *YAMLWriter) WriteMultiAddressResult(result *models.MultiAddressResult, outputDir string) error {
+	if err := EnsureDirectory(outputDir); err != nil {
+		return err
 	}
+	
+	filename := outputDir + "/multiple_addresses_results.yml"
+	
+	var sb strings.Builder
+	
+	sb.WriteString("# PAN Multiple Address Analysis Results\n")
+	sb.WriteString("# Generated: " + result.AnalysisTimestamp.Format(time.RFC3339) + "\n\n")
+	
+	sb.WriteString("analysis_info:\n")
+	sb.WriteString(w.indent + "addresses: " + strings.Join(result.Addresses, ", ") + "\n")
+	sb.WriteString(w.indent + "config_file: " + result.ConfigFile + "\n")
+	sb.WriteString(w.indent + "analysis_timestamp: " + result.AnalysisTimestamp.Format(time.RFC3339) + "\n")
+	sb.WriteString(w.indent + "processing_time: " + FormatDuration(result.ProcessingTime) + "\n")
+	sb.WriteString(w.indent + "addresses_analyzed: " + strconv.Itoa(len(result.Addresses)) + "\n\n")
+	
+	w.writeMultiAddressStatistics(&sb, result.CombinedStats)
+	
+	if len(result.Results) > 0 {
+		sb.WriteString("individual_results:\n")
+		for address, addressResult := range result.Results {
+			sb.WriteString(w.indent + address + ":\n")
+			sb.WriteString(w.indent + w.indent + "total_references: " + strconv.Itoa(addressResult.TotalReferences) + "\n")
+			sb.WriteString(w.indent + w.indent + "direct_references: " + strconv.Itoa(len(addressResult.DirectReferences)) + "\n")
+			sb.WriteString(w.indent + w.indent + "indirect_references: " + strconv.Itoa(len(addressResult.IndirectReferences)) + "\n")
+			sb.WriteString(w.indent + w.indent + "redundant_addresses: " + strconv.Itoa(len(addressResult.RedundantAddresses)) + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	
+	if len(result.CrossReferences) > 0 {
+		sb.WriteString("cross_references:\n")
+		for _, ref := range result.CrossReferences {
+			sb.WriteString(w.indent + "- address_a: " + ref.AddressA + "\n")
+			sb.WriteString(w.indent + "  address_b: " + ref.AddressB + "\n")
+			sb.WriteString(w.indent + "  shared_rule: " + ref.SharedRule + "\n")
+			sb.WriteString(w.indent + "  rule_type: " + ref.RuleType + "\n")
+			if ref.DeviceGroup != "" {
+				sb.WriteString(w.indent + "  device_group: " + ref.DeviceGroup + "\n")
+			}
+		}
+		sb.WriteString("\n")
+	}
+	
+	return w.writeToFile(filename, sb.String())
+}
 
-	// Add footer like results.yml
-	fmt.Fprintf(file, "\n# ═══════════════════════════════════════════════════════════════\n")
-	fmt.Fprintf(file, "# Cleanup Commands Generation Complete\n")
-	fmt.Fprintf(file, "# Generated by: %s Tool %s\n", models.AppName, models.Version)
-	fmt.Fprintf(file, "# Advanced Redundant Address Cleanup & Optimization\n")
-	fmt.Fprintf(file, "# ═══════════════════════════════════════════════════════════════\n")
-
-	return nil
+func (w *YAMLWriter) writeMultiAddressStatistics(sb *strings.Builder, stats models.AnalysisStatistics) {
+	sb.WriteString("combined_statistics:\n")
+	sb.WriteString(w.indent + "address_objects: " + strconv.Itoa(stats.AddressObjects) + "\n")
+	sb.WriteString(w.indent + "security_rules: " + strconv.Itoa(stats.SecurityRules) + "\n")
+	sb.WriteString(w.indent + "nat_rules: " + strconv.Itoa(stats.NATRules) + "\n")
+	sb.WriteString(w.indent + "address_groups: " + strconv.Itoa(stats.AddressGroups) + "\n")
+	sb.WriteString(w.indent + "direct_references: " + strconv.Itoa(stats.DirectReferences) + "\n")
+	sb.WriteString(w.indent + "indirect_references: " + strconv.Itoa(stats.IndirectReferences) + "\n")
+	sb.WriteString(w.indent + "redundant_addresses: " + strconv.Itoa(stats.RedundantAddresses) + "\n")
+	sb.WriteString(w.indent + "device_groups: " + strconv.Itoa(stats.DeviceGroups) + "\n\n")
 }
