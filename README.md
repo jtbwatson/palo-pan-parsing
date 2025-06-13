@@ -11,6 +11,7 @@ A high-performance Go-based command-line tool for analyzing Palo Alto Networks X
 - **Modern TUI Interface**: Terminal user interface with multi-select operations and progress tracking
 - **YAML Output**: Clean, structured results without unnecessary quotes or clutter
 - **Memory Efficient**: In-memory processing with progress reporting for large files
+- **Offline Ready**: All dependencies vendored for air-gapped/offline deployment
 
 ## Quick Start
 
@@ -216,3 +217,45 @@ make help           # Show all available commands
 # Interactive mode testing
 ./pan-parser --verbose
 ```
+
+## Offline/Air-gapped Deployment
+
+The PAN parser is designed for offline and air-gapped environments with all dependencies fully vendored.
+
+### Preparation
+```bash
+# Vendor all dependencies
+make vendor
+
+# Test offline capabilities
+make test-offline
+
+# Prepare for air-gapped deployment
+make airgap-prep
+```
+
+### Offline Build
+```bash
+# Build using only vendored dependencies
+go build -mod=vendor -o pan-parser main.go
+
+# Or use Makefile (already configured for vendor mode)
+make build
+```
+
+### Verification
+```bash
+# Verify all dependencies are vendored
+go mod verify
+
+# Test with network disabled (simulates air-gapped)
+GOPROXY=off go build -mod=vendor -o pan-parser main.go
+```
+
+### Deployment
+1. Copy the entire project directory to the target system
+2. Ensure Go 1.23+ is installed on the target system
+3. Run `make build` or `go build -mod=vendor`
+4. No internet access required during build or runtime
+
+The project includes 19 vendored modules covering all Bubble Tea TUI dependencies and Go standard library extensions.

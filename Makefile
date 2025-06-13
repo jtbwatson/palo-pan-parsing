@@ -215,3 +215,17 @@ check: deps fmt ## Run all checks (deps, format, build test)
 	@echo "Running build check..."
 	go build $(GO_BUILD_FLAGS) -o /dev/null .
 	@echo "Build check passed!"
+
+# Offline build test
+.PHONY: test-offline
+test-offline: ## Test offline build capabilities (no external dependencies)
+	@echo "Testing offline build capabilities..."
+	@./scripts/offline-build-test.sh
+
+# Prepare for air-gapped deployment
+.PHONY: airgap-prep
+airgap-prep: vendor test-offline ## Prepare for air-gapped/offline deployment
+	@echo "Preparing for air-gapped deployment..."
+	@echo "✅ Dependencies vendored"
+	@echo "✅ Offline build tested"
+	@echo "Ready for air-gapped deployment!"
