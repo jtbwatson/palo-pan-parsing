@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"palo-pan-parsing/models"
 	"palo-pan-parsing/utils"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -618,4 +619,244 @@ func (m Model) generateAllAddressGroupCommandsWithMappings() (Model, tea.Cmd) {
 // generateSingleAddressGroupCommandWithIP - simplified implementation
 func (m Model) generateSingleAddressGroupCommandWithIP() (Model, tea.Cmd) {
 	return m, generateAddressGroupCommandsCmd(m.addresses, m.logFile)
+}
+
+// Address copy workflow state handlers
+func (m Model) updateCopyAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.state = StatePostAnalysis
+		m.copySourceAddress = ""
+	case "enter":
+		if m.copySourceAddress != "" {
+			// Move to new address name input
+			m.state = StateCopyNewAddressInput
+			m.copyNewAddress = ""
+		}
+	case "backspace":
+		if len(m.copySourceAddress) > 0 {
+			m.copySourceAddress = m.copySourceAddress[:len(m.copySourceAddress)-1]
+		}
+	default:
+		if len(msg.String()) == 1 {
+			m.copySourceAddress += msg.String()
+		}
+	}
+
+	return m, nil
+}
+
+func (m Model) viewCopyAddressInput() string {
+	var s strings.Builder
+
+	title := titleStyle.Render("Copy Address Configuration")
+	s.WriteString(title + "\n\n")
+
+	s.WriteString("Enter the name of the source address object to copy settings from:\n\n")
+
+	// Clean input styling
+	displayText := m.copySourceAddress
+	cursor := "█"
+	if displayText == "" {
+		s.WriteString("Source Address: " + placeholderStyle.Render("existing-address-name") + "\n\n")
+	} else {
+		s.WriteString(inputFieldStyle.Render("Source Address: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
+	}
+
+	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
+
+	return m.renderWithDynamicWidth(s.String())
+}
+
+func (m Model) updateCopyNewAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.state = StateCopyAddressInput
+		m.copyNewAddress = ""
+	case "enter":
+		if m.copyNewAddress != "" {
+			// Move to IP address input
+			m.state = StateCopyIPAddressInput
+			m.copyNewIP = ""
+			m.ipValidationError = ""
+		}
+	case "backspace":
+		if len(m.copyNewAddress) > 0 {
+			m.copyNewAddress = m.copyNewAddress[:len(m.copyNewAddress)-1]
+		}
+	default:
+		if len(msg.String()) == 1 {
+			m.copyNewAddress += msg.String()
+		}
+	}
+
+	return m, nil
+}
+
+func (m Model) viewCopyNewAddressInput() string {
+	var s strings.Builder
+
+	title := titleStyle.Render("New Address Name")
+	s.WriteString(title + "\n\n")
+
+	s.WriteString("Source address: " + highlightStyle.Render(m.copySourceAddress) + "\n")
+	s.WriteString("Enter the name for the new address object:\n\n")
+
+	// Clean input styling
+	displayText := m.copyNewAddress
+	cursor := "█"
+	if displayText == "" {
+		s.WriteString("New Address Name: " + placeholderStyle.Render("my-new-address") + "\n\n")
+	} else {
+		s.WriteString(inputFieldStyle.Render("New Address Name: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
+	}
+
+	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
+
+	return m.renderWithDynamicWidth(s.String())
+}
+
+func (m Model) updateCopyIPAddressInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.state = StateCopyNewAddressInput
+		m.copyNewIP = ""
+		m.ipValidationError = ""
+	case "enter":
+		if m.copyNewIP != "" {
+			// Validate IP address format
+			if !models.ValidateIPAddress(m.copyNewIP) {
+				m.ipValidationError = "Invalid IP address format. Use format: 192.168.1.100/32"
+				return m, nil
+			}
+
+			// Clear any previous validation error
+			m.ipValidationError = ""
+
+			// Normalize IP address (add default CIDR if missing)
+			normalizedIP := models.NormalizeIPAddress(m.copyNewIP)
+			m.copyNewIP = normalizedIP
+
+			// Move to copy mode selection
+			m.state = StateCopyModeInput
+			m.copyMode = "add" // Default to add mode
+		}
+	case "backspace":
+		if len(m.copyNewIP) > 0 {
+			m.copyNewIP = m.copyNewIP[:len(m.copyNewIP)-1]
+			// Clear validation error when user starts typing
+			m.ipValidationError = ""
+		}
+	default:
+		if len(msg.String()) == 1 {
+			m.copyNewIP += msg.String()
+			// Clear validation error when user starts typing
+			m.ipValidationError = ""
+		}
+	}
+
+	return m, nil
+}
+
+func (m Model) viewCopyIPAddressInput() string {
+	var s strings.Builder
+
+	title := titleStyle.Render("IP Address Input")
+	s.WriteString(title + "\n\n")
+
+	s.WriteString("Source address: " + highlightStyle.Render(m.copySourceAddress) + "\n")
+	s.WriteString("New address name: " + highlightStyle.Render(m.copyNewAddress) + "\n")
+	s.WriteString("Enter the IP address for the new address object:\n\n")
+
+	// Clean input styling
+	displayText := m.copyNewIP
+	cursor := "█"
+	if displayText == "" {
+		s.WriteString("IP Address: " + placeholderStyle.Render("192.168.1.100/32") + "\n\n")
+	} else {
+		s.WriteString(inputFieldStyle.Render("IP Address: ") + inputTextStyle.Render(displayText) + cursor + "\n\n")
+	}
+
+	// Show validation error if present
+	if m.ipValidationError != "" {
+		s.WriteString(errorStyle.Render("⚠ "+m.ipValidationError) + "\n\n")
+	}
+
+	s.WriteString(helpStyle.Render("Enter to continue, Esc to go back, Ctrl+C to quit"))
+
+	return m.renderWithDynamicWidth(s.String())
+}
+
+func (m Model) updateCopyModeInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m, tea.Quit
+	case "esc":
+		m.state = StateCopyIPAddressInput
+	case "up", "k":
+		if m.copyMode == "replace" {
+			m.copyMode = "add"
+		}
+	case "down", "j":
+		if m.copyMode == "add" {
+			m.copyMode = "replace"
+		}
+	case "enter":
+		// Execute the address copy operation
+		return m.executeAddressCopy()
+	}
+
+	return m, nil
+}
+
+func (m Model) viewCopyModeInput() string {
+	var s strings.Builder
+
+	title := titleStyle.Render("Copy Mode Selection")
+	s.WriteString(title + "\n\n")
+
+	s.WriteString("Source address: " + highlightStyle.Render(m.copySourceAddress) + "\n")
+	s.WriteString("New address name: " + highlightStyle.Render(m.copyNewAddress) + "\n")
+	s.WriteString("New IP address: " + highlightStyle.Render(m.copyNewIP) + "\n\n")
+
+	s.WriteString("Select how to handle existing references:\n\n")
+
+	// Add mode selection
+	addCursor := " "
+	replaceCursor := " "
+	if m.copyMode == "add" {
+		addCursor = ">"
+	} else {
+		replaceCursor = ">"
+	}
+
+	var addDisplayText, replaceDisplayText string
+	if m.copyMode == "add" {
+		addDisplayText = selectedStyle.Render("Add Mode")
+		replaceDisplayText = choiceStyle.Render("Replace Mode")
+	} else {
+		addDisplayText = choiceStyle.Render("Add Mode")
+		replaceDisplayText = selectedStyle.Render("Replace Mode")
+	}
+
+	s.WriteString(addCursor + " " + addDisplayText + "\n")
+	s.WriteString("   " + helpStyle.Render("Add new address alongside existing ones in groups and rules") + "\n\n")
+
+	s.WriteString(replaceCursor + " " + replaceDisplayText + "\n")
+	s.WriteString("   " + helpStyle.Render("Replace existing address with new one in groups and rules") + "\n\n")
+
+	s.WriteString(helpStyle.Render("Use ↑/↓ to select, Enter to continue, Esc to go back, Ctrl+C to quit"))
+
+	return m.renderWithDynamicWidth(s.String())
+}
+
+// executeAddressCopy generates the address copy commands
+func (m Model) executeAddressCopy() (Model, tea.Cmd) {
+	return m, addressCopyCmd(m.logFile, m.copySourceAddress, m.copyNewAddress, m.copyNewIP, m.copyMode)
 }

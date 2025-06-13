@@ -108,6 +108,18 @@ func (m Model) handleKeyMessage(msg tea.KeyMsg) (Model, tea.Cmd) {
 	case StateIPAddressInput:
 		model, cmd := m.updateIPAddressInput(msg)
 		return model.(Model), cmd
+	case StateCopyAddressInput:
+		model, cmd := m.updateCopyAddressInput(msg)
+		return model.(Model), cmd
+	case StateCopyNewAddressInput:
+		model, cmd := m.updateCopyNewAddressInput(msg)
+		return model.(Model), cmd
+	case StateCopyIPAddressInput:
+		model, cmd := m.updateCopyIPAddressInput(msg)
+		return model.(Model), cmd
+	case StateCopyModeInput:
+		model, cmd := m.updateCopyModeInput(msg)
+		return model.(Model), cmd
 	case StateOperationStatus:
 		model, cmd := m.updateOperationStatus(msg)
 		return model.(Model), cmd
@@ -216,6 +228,23 @@ func (m Model) handleProcessResult(result ProcessResult) (Model, tea.Cmd) {
 		m.hasAddressGroups = result.HasAddressGroups
 		m.hasRedundantAddrs = result.HasRedundantAddrs
 		m.addresses = result.Addresses
+		
+		// Initialize post-analysis choices - only copy address configuration for now
+		m.postAnalysisChoices = []string{
+			"Copy Address Configuration",
+			"---",
+		}
+		
+		// Add action items
+		m.postAnalysisChoices = append(m.postAnalysisChoices, 
+			"Execute Selected Operation",
+			"No Additional Operations",
+			"Return to Main Menu",
+		)
+		
+		// Reset selection state
+		m.postAnalysisSelected = make(map[int]bool)
+		m.cursor = 0
 	} else {
 		m.state = StateError
 		m.err = result.Error

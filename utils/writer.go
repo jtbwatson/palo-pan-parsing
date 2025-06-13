@@ -435,3 +435,110 @@ func (w *YAMLWriter) writeMultiAddressStatistics(sb *strings.Builder, stats mode
 	sb.WriteString(w.indent + "redundant_addresses: " + strconv.Itoa(stats.RedundantAddresses) + "\n")
 	sb.WriteString(w.indent + "device_groups: " + strconv.Itoa(stats.DeviceGroups) + "\n\n")
 }
+
+// WriteCopyCommands writes address copy commands to YAML file
+func (w *YAMLWriter) WriteCopyCommands(
+	outputFile string,
+	sourceAddr *models.AddressObject,
+	newAddr *models.AddressObject,
+	createCommands []string,
+	updateCommands []string,
+	groupMemberships []models.GroupMembership,
+	ruleReferences []models.AddressReference,
+	summary map[string]int,
+) error {
+	if err := EnsureDirectory("outputs"); err != nil {
+		return err
+	}
+	
+	if !strings.HasPrefix(outputFile, "outputs/") {
+		outputFile = "outputs/" + outputFile
+	}
+	
+	var sb strings.Builder
+	
+	sb.WriteString("# PAN Address Copy Commands\n")
+	sb.WriteString("# Generated: " + time.Now().Format(time.RFC3339) + "\n\n")
+	
+	// Analysis info
+	sb.WriteString("copy_info:\n")
+	sb.WriteString(w.indent + "source_address: " + sourceAddr.Name + "\n")
+	sb.WriteString(w.indent + "source_ip: " + sourceAddr.GetIP() + "\n")
+	sb.WriteString(w.indent + "source_scope: " + sourceAddr.Scope + "\n")
+	if sourceAddr.DeviceGroup != "" {
+		sb.WriteString(w.indent + "source_device_group: " + sourceAddr.DeviceGroup + "\n")
+	}
+	if sourceAddr.Description != "" {
+		sb.WriteString(w.indent + "source_description: \"" + sourceAddr.Description + "\"\n")
+	}
+	sb.WriteString(w.indent + "new_address: " + newAddr.Name + "\n")
+	sb.WriteString(w.indent + "new_ip: " + newAddr.IPNetmask + "\n")
+	sb.WriteString(w.indent + "new_scope: " + newAddr.Scope + "\n")
+	if newAddr.DeviceGroup != "" {
+		sb.WriteString(w.indent + "new_device_group: " + newAddr.DeviceGroup + "\n")
+	}
+	sb.WriteString("\n")
+	
+	// Summary
+	sb.WriteString("summary:\n")
+	if val, exists := summary["groups_to_update"]; exists {
+		sb.WriteString(w.indent + "groups_to_update: " + strconv.Itoa(val) + "\n")
+	}
+	if val, exists := summary["security_rules_to_update"]; exists {
+		sb.WriteString(w.indent + "security_rules_to_update: " + strconv.Itoa(val) + "\n")
+	}
+	if val, exists := summary["nat_rules_to_update"]; exists {
+		sb.WriteString(w.indent + "nat_rules_to_update: " + strconv.Itoa(val) + "\n")
+	}
+	if val, exists := summary["total_commands"]; exists {
+		sb.WriteString(w.indent + "total_commands: " + strconv.Itoa(val) + "\n")
+	}
+	sb.WriteString("\n")
+	
+	// Commands
+	if len(createCommands) > 0 {
+		sb.WriteString("step_1_create_objects:\n")
+		sb.WriteString(w.indent + "# Create new address object with copied settings\n")
+		for _, cmd := range createCommands {
+			sb.WriteString(w.indent + "- " + cmd + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	
+	if len(updateCommands) > 0 {
+		sb.WriteString("step_2_update_references:\n")
+		sb.WriteString(w.indent + "# Update groups and rules to use new address\n")
+		for _, cmd := range updateCommands {
+			sb.WriteString(w.indent + "- " + cmd + "\n")
+		}
+		sb.WriteString("\n")
+	}
+	
+	// Detailed references
+	if len(groupMemberships) > 0 {
+		sb.WriteString("group_memberships:\n")
+		for _, membership := range groupMemberships {
+			sb.WriteString(w.indent + "- group_name: " + membership.GroupName + "\n")
+			sb.WriteString(w.indent + "  group_scope: " + membership.GroupScope + "\n")
+			if membership.DeviceGroup != "" {
+				sb.WriteString(w.indent + "  device_group: " + membership.DeviceGroup + "\n")
+			}
+		}
+		sb.WriteString("\n")
+	}
+	
+	if len(ruleReferences) > 0 {
+		sb.WriteString("rule_references:\n")
+		for _, ref := range ruleReferences {
+			sb.WriteString(w.indent + "- rule_name: " + ref.SourceName + "\n")
+			sb.WriteString(w.indent + "  rule_type: " + ref.SourceType + "\n")
+			sb.WriteString(w.indent + "  context: " + ref.Context + "\n")
+			if ref.DeviceGroup != "" {
+				sb.WriteString(w.indent + "  device_group: " + ref.DeviceGroup + "\n")
+			}
+		}
+		sb.WriteString("\n")
+	}
+	
+	return w.writeToFile(outputFile, sb.String())
+}

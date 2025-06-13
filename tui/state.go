@@ -20,6 +20,10 @@ const (
 	StateSelectSourceAddress
 	StateNewAddressInput
 	StateIPAddressInput
+	StateCopyAddressInput
+	StateCopyNewAddressInput
+	StateCopyIPAddressInput
+	StateCopyModeInput
 	StateOperationStatus
 	StateCompleted
 	StateError
@@ -93,6 +97,12 @@ type Model struct {
 	// Device group selection scrolling
 	deviceGroupScrollOffset int
 
+	// Address copy functionality
+	copySourceAddress string
+	copyNewAddress    string
+	copyNewIP         string
+	copyMode          string
+
 	// Error handling
 	err               error
 	ipValidationError string
@@ -129,6 +139,10 @@ func NewModel() Model {
 		deviceGroupInput: "",
 		newAddressInput:  "",
 		ipAddressInput:   "",
+		copySourceAddress: "",
+		copyNewAddress:   "",
+		copyNewIP:        "",
+		copyMode:         "add",
 	}
 }
 

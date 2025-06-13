@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"palo-pan-parsing/models"
+
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -49,6 +51,10 @@ func (m Model) updateResults(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.addressInput = ""
 		m.addresses = nil
 		m.results = ""
+	case "enter", " ":
+		// Continue to additional operations menu
+		m.state = StatePostAnalysis
+		m.cursor = 0
 	}
 
 	return m, nil
@@ -74,7 +80,7 @@ func (m Model) viewResults() string {
 
 	s.WriteString("\n" + successStyle.Render("✅ Configuration analysis completed successfully!") + "\n\n")
 
-	s.WriteString(helpStyle.Render("Esc to return to menu, q to quit"))
+	s.WriteString(helpStyle.Render("Press Enter or Space for additional operations, Esc to return to menu, q to quit"))
 
 	return m.renderWithDynamicWidth(s.String())
 }
@@ -113,14 +119,14 @@ func (m Model) updatePostAnalysis(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case " ": // Spacebar toggles selection
 		choice := m.postAnalysisChoices[m.cursor]
 		// Only allow selection of operation choices, not separators or action items
-		if choice == "Generate Address Group Commands" || choice == "Generate Cleanup Commands" {
+		if choice == "Generate Address Group Commands" || choice == "Generate Cleanup Commands" || choice == "Copy Address Configuration" {
 			// Toggle current selection
 			m.postAnalysisSelected[m.cursor] = !m.postAnalysisSelected[m.cursor]
 			
-			// Implement mutual exclusion - if this operation is now selected, deselect the other
+			// Implement mutual exclusion - if this operation is now selected, deselect the others
 			if m.postAnalysisSelected[m.cursor] {
 				for i, otherChoice := range m.postAnalysisChoices {
-					if i != m.cursor && (otherChoice == "Generate Address Group Commands" || otherChoice == "Generate Cleanup Commands") {
+					if i != m.cursor && (otherChoice == "Generate Address Group Commands" || otherChoice == "Generate Cleanup Commands" || otherChoice == "Copy Address Configuration") {
 						m.postAnalysisSelected[i] = false
 					}
 				}
@@ -178,7 +184,7 @@ func (m Model) viewPostAnalysis() string {
 
 		var line string
 
-		if choice == "Generate Address Group Commands" || choice == "Generate Cleanup Commands" {
+		if choice == "Generate Address Group Commands" || choice == "Generate Cleanup Commands" || choice == "Copy Address Configuration" {
 			// Selectable operations with consistent spacing
 			var checkbox string
 			if m.postAnalysisSelected[i] {
@@ -203,6 +209,8 @@ func (m Model) viewPostAnalysis() string {
 				description = "Add a new address to the same groups as an existing address"
 			case "Generate Cleanup Commands":
 				description = "Remove redundant address objects and optimize configuration"
+			case "Copy Address Configuration":
+				description = "Copy all settings from one address object to a new address object with different IP"
 			}
 
 			s.WriteString(line + "\n")
@@ -315,10 +323,123 @@ func (m Model) viewSelectSourceAddress() string {
 
 	return m.renderWithDynamicWidth(s.String())
 }
-// executeSelectedOperations - simplified implementation
+// executeSelectedOperations - handles execution of selected post-analysis operations
 func (m Model) executeSelectedOperations() (Model, tea.Cmd) {
-	m.state = StateOperationStatus
-	m.operationMessage = "Operations completed successfully"
+	// Find which operation is selected
+	var selectedOperation string
+	for i, choice := range m.postAnalysisChoices {
+		if m.postAnalysisSelected[i] {
+			selectedOperation = choice
+			break
+		}
+	}
+
+	// If no operation selected, show error
+	if selectedOperation == "" {
+		m.state = StateOperationStatus
+		m.operationMessage = "No operation selected. Please select an operation first."
+		return m, nil
+	}
+
+	// Route to appropriate handler based on selected operation
+	switch selectedOperation {
+	case "Generate Address Group Commands":
+		return m.handleAddressGroupCommands()
+	case "Generate Cleanup Commands":
+		return m.handleCleanupCommands()
+	case "Copy Address Configuration":
+		return m.handleCopyAddressConfiguration()
+	default:
+		m.state = StateOperationStatus
+		m.operationMessage = fmt.Sprintf("Unknown operation: %s", selectedOperation)
+		return m, nil
+	}
+}
+
+// handleAddressGroupCommands - routes to address group command generation workflow
+func (m Model) handleAddressGroupCommands() (Model, tea.Cmd) {
+	// Get addresses with groups from the analysis results
+	var addressesWithGroups []string
+	
+	// Extract addresses that have groups from the analysis results
+	result := m.analysisResults["result"]
+	switch r := result.(type) {
+	case *models.AnalysisResult:
+		if len(r.AddressGroups) > 0 {
+			addressesWithGroups = append(addressesWithGroups, r.TargetAddress)
+		}
+	case *models.MultiAddressResult:
+		for _, res := range r.Results {
+			if len(res.AddressGroups) > 0 {
+				addressesWithGroups = append(addressesWithGroups, res.TargetAddress)
+			}
+		}
+	}
+
+	if len(addressesWithGroups) == 0 {
+		m.state = StateOperationStatus
+		m.operationMessage = "No addresses found with address groups in the analysis results."
+		return m, nil
+	}
+
+	// If multiple addresses with groups, go to selection state
+	if len(addressesWithGroups) > 1 {
+		m.addressesWithGroups = addressesWithGroups
+		m.selectedSourceAddresses = make(map[int]bool)
+		m.state = StateSelectSourceAddress
+		m.cursor = 0
+		return m, nil
+	}
+
+	// Single address, proceed directly to new address input
+	m.addressProcessingQueue = addressesWithGroups
+	m.currentProcessingIndex = 0
+	m.addressNameMappings = make(map[string]string)
+	m.addressIPMappings = make(map[string]string)
+	m.state = StateNewAddressInput
+	m.newAddressInput = ""
+	m.cursor = 0
+	return m, nil
+}
+
+// handleCleanupCommands - handles cleanup command generation
+func (m Model) handleCleanupCommands() (Model, tea.Cmd) {
+	// Check if there are redundant addresses to clean up
+	hasRedundant := false
+	
+	result := m.analysisResults["result"]
+	switch r := result.(type) {
+	case *models.AnalysisResult:
+		hasRedundant = len(r.RedundantAddresses) > 0
+	case *models.MultiAddressResult:
+		for _, res := range r.Results {
+			if len(res.RedundantAddresses) > 0 {
+				hasRedundant = true
+				break
+			}
+		}
+	}
+
+	if !hasRedundant {
+		m.state = StateOperationStatus
+		m.operationMessage = "No redundant addresses found in the analysis results to clean up."
+		return m, nil
+	}
+
+	// Generate cleanup commands
+	return m, generateCleanupCommandsCmd(m.addresses, m.logFile)
+}
+
+// handleCopyAddressConfiguration - handles address configuration copying
+func (m Model) handleCopyAddressConfiguration() (Model, tea.Cmd) {
+	// Start the address copy workflow
+	m.state = StateCopyAddressInput
+	m.copySourceAddress = ""
+	m.copyNewAddress = ""
+	m.copyNewIP = ""
+	m.copyMode = "add"
+	m.ipValidationError = ""
+	m.cursor = 0
 	return m, nil
 }
 

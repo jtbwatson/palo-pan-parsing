@@ -31,6 +31,14 @@ func (m Model) View() string {
 		return m.viewNewAddressInput()
 	case StateIPAddressInput:
 		return m.viewIPAddressInput()
+	case StateCopyAddressInput:
+		return m.viewCopyAddressInput()
+	case StateCopyNewAddressInput:
+		return m.viewCopyNewAddressInput()
+	case StateCopyIPAddressInput:
+		return m.viewCopyIPAddressInput()
+	case StateCopyModeInput:
+		return m.viewCopyModeInput()
 	case StateOperationStatus:
 		return m.viewOperationStatus()
 	case StateCompleted:

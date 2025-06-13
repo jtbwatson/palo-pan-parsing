@@ -6,6 +6,7 @@ A high-performance Go-based command-line tool for analyzing Palo Alto Networks X
 
 - **Fast XML Processing**: Streaming parser optimized for large Panorama configuration files
 - **Comprehensive Analysis**: Finds direct and indirect address references through groups and rules
+- **Address Configuration Copy**: Copy all settings from one address object to a new one with different IP
 - **Redundant Address Detection**: Identifies duplicate addresses with same IP/netmask
 - **Smart Scope Analysis**: Optimizes address placement across device groups and shared scopes
 - **Modern TUI Interface**: Terminal user interface with multi-select operations and progress tracking
@@ -34,6 +35,9 @@ make build
 
 # Command line mode
 ./pan-parser -a linux1 -l config.xml -o results.yml
+
+# Address copy mode - copy settings to new address with different IP
+./pan-parser -l config.xml -copy-address old-server -new-address new-server -new-ip 192.168.1.100/32
 ```
 
 ## Output Examples
@@ -83,6 +87,33 @@ generated_commands:
   - set shared address-group production_servers static newServer1
 ```
 
+### Address Copy Commands
+```yaml
+# linux1_copy_commands.yml
+copy_info:
+  source_address: linux1
+  source_ip: 172.16.3.2/32
+  source_scope: shared
+  new_address: linux2
+  new_ip: 192.168.1.100/32
+  new_scope: shared
+
+summary:
+  groups_to_update: 2
+  security_rules_to_update: 1
+  total_commands: 4
+
+step_1_create_objects:
+  # Create new address object with copied settings
+  - set shared address linux2 ip-netmask 192.168.1.100/32
+
+step_2_update_references:
+  # Update groups and rules to use new address
+  - set shared address-group web_servers static linux2
+  - set shared address-group production_servers static linux2
+  - set shared rulebase security rules internal-to-linux destination linux2
+```
+
 ## Interface Modes
 
 ### 1. Modern TUI (Default)
@@ -112,12 +143,30 @@ generated_commands:
 ./pan-parser -a server1 -l config.xml -o /path/to/results.yml
 ```
 
+### 4. Address Copy Mode
+Copy all settings (scope, device group, description) from an existing address object to a new one with a different IP address.
+
+```bash
+# Copy address settings (add new alongside existing)
+./pan-parser -l config.xml -copy-address existing-server -new-address new-server -new-ip 192.168.1.100/32
+
+# Copy address settings (replace existing with new in all references)
+./pan-parser -l config.xml -copy-address existing-server -new-address new-server -new-ip 192.168.1.100/32 -copy-mode replace
+```
+
+**Copy Modes:**
+- **Add Mode** (default): Creates new address and adds it alongside existing ones in groups and rules
+- **Replace Mode**: Creates new address and replaces existing one in all groups and rules
+
+**Output:** Generates `{source_address}_copy_commands.yml` with ready-to-execute PAN CLI commands.
+
 ## Architecture
 
 ### Core Components
 - **Streaming Parser**: Memory-efficient XML processing using Go's standard library
 - **Modular Processor**: Concurrent event processing with worker pools
 - **Analysis Engine**: Deep relationship analysis across configuration elements
+- **Address Copier**: Copy address settings with smart scope optimization and command generation
 - **Redundancy Analyzer**: Smart duplicate detection with IP matching
 - **Scope Optimizer**: Intelligent placement recommendations for efficiency
 
@@ -138,6 +187,7 @@ generated_commands:
 ├── processor/                 # Core processing engine
 │   ├── processor.go          # Main processing coordination
 │   ├── address_analyzer.go   # Relationship analysis
+│   ├── address_copier.go     # Address configuration copying
 │   └── redundancy_analyzer.go # Duplicate detection
 ├── parser/                    # XML parsing and conversion
 │   ├── xml_reader.go         # Streaming XML processor

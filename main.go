@@ -33,6 +33,12 @@ var (
 	workers      = flag.Int("workers", 4, "Number of worker threads for processing")
 	bufferSize   = flag.Int("buffer", 65536, "Buffer size for file reading")
 	timeout      = flag.Int("timeout", 30, "Timeout in minutes for processing")
+	
+	// Address copy functionality flags
+	copyAddr     = flag.String("copy-address", "", "Source address name to copy settings from")
+	newAddrName  = flag.String("new-address", "", "New address name for copied settings")
+	newAddrIP    = flag.String("new-ip", "", "New IP/netmask for copied address (e.g., 192.168.1.100/32)")
+	copyMode     = flag.String("copy-mode", "add", "Copy mode: 'add' (add new alongside existing) or 'replace' (replace existing)")
 )
 
 func main() {
@@ -56,8 +62,8 @@ func main() {
 	
 	mode := determineRunMode()
 	
-	// Skip validation for TUI mode - it will handle input interactively
-	if mode != "tui" {
+	// Skip validation for TUI mode and copy mode - they will handle input differently
+	if mode != "tui" && mode != "copy" {
 		if err := validateConfig(config); err != nil {
 			fmt.Fprintf(os.Stderr, "Validation error: %v\n", err)
 			os.Exit(1)
@@ -78,6 +84,11 @@ func main() {
 	case "cli":
 		if err := runCLIMode(config); err != nil {
 			fmt.Fprintf(os.Stderr, "CLI error: %v\n", err)
+			os.Exit(1)
+		}
+	case "copy":
+		if err := runCopyMode(config); err != nil {
+			fmt.Fprintf(os.Stderr, "Copy error: %v\n", err)
 			os.Exit(1)
 		}
 	default:
@@ -151,6 +162,11 @@ func validateConfig(config *models.Config) error {
 func determineRunMode() string {
 	if flag.NFlag() == 0 {
 		return "tui"
+	}
+	
+	// Check for address copy mode first
+	if *copyAddr != "" && *newAddrName != "" && *newAddrIP != "" {
+		return "copy"
 	}
 	
 	if *tuiMode {
@@ -247,12 +263,14 @@ func showHelpMessage() {
 	fmt.Println("  pan-parser [OPTIONS]")
 	fmt.Println("  pan-parser -l <config_file> -a <address>")
 	fmt.Println("  pan-parser -l <config_file> -addresses <addr1,addr2,addr3>")
+	fmt.Println("  pan-parser -l <config_file> -copy-address <source> -new-address <name> -new-ip <ip>")
 	fmt.Println()
 	
 	fmt.Println("MODES:")
 	fmt.Println("  Default (no flags)    Run in modern TUI mode (recommended)")
 	fmt.Println("  --tui                 Run in modern TUI mode explicitly") 
 	fmt.Println("  --verbose             Run in classic interactive mode")
+	fmt.Println("  Address Copy Mode     Copy all settings from one address to another")
 	fmt.Println("  CLI flags             Run in command-line mode")
 	fmt.Println()
 	
@@ -279,12 +297,19 @@ func showHelpMessage() {
 	fmt.Println("  # Performance tuning for large files")
 	fmt.Println("  pan-parser -l large-config.xml -a server1 -workers 8 -buffer 131072")
 	fmt.Println()
+	fmt.Println("  # Copy address settings (add new address alongside existing)")
+	fmt.Println("  pan-parser -l panos.xml -copy-address server1 -new-address server2 -new-ip 192.168.1.100/32")
+	fmt.Println()
+	fmt.Println("  # Copy address settings (replace existing with new)")
+	fmt.Println("  pan-parser -l panos.xml -copy-address server1 -new-address server2 -new-ip 192.168.1.100/32 -copy-mode replace")
+	fmt.Println()
 	
 	fmt.Println("OUTPUT:")
 	fmt.Println("  Results are saved to YAML files in the output directory:")
 	fmt.Println("  - <address>_results.yml         Main analysis results")
 	fmt.Println("  - <address>_cleanup.yml         Redundant address cleanup commands")
 	fmt.Println("  - <address>_add_to_groups_commands.yml  Address group commands")
+	fmt.Println("  - <address>_copy_commands.yml   Address copy commands")
 	fmt.Println("  - multiple_addresses_results.yml      Multi-address analysis")
 	fmt.Println()
 	
@@ -296,6 +321,120 @@ func showHelpMessage() {
 	fmt.Println()
 	
 	fmt.Println("For more information, visit: https://github.com/your-org/palo-pan-parsing")
+}
+
+func runCopyMode(config *models.Config) error {
+	if *logFile == "" {
+		return fmt.Errorf("configuration file (-l) is required for copy mode")
+	}
+	
+	request := processor.AddressCopyRequest{
+		SourceAddressName: *copyAddr,
+		NewAddressName:    *newAddrName,
+		NewIPNetmask:      *newAddrIP,
+		CopyMode:          *copyMode,
+	}
+	
+	if err := processor.ValidateCopyRequest(request); err != nil {
+		return fmt.Errorf("invalid copy request: %w", err)
+	}
+	
+	if !*silent {
+		fmt.Printf("Copying address settings from '%s' to '%s' (%s)\n", *copyAddr, *newAddrName, *newAddrIP)
+		fmt.Printf("Copy mode: %s\n", *copyMode)
+		fmt.Printf("Analyzing configuration file: %s\n", *logFile)
+	}
+	
+	// Parse the configuration to get all objects but without target filtering
+	// We need ALL objects for copy analysis
+	tempConfig := *config
+	tempConfig.TargetAddress = ""
+	tempConfig.Addresses = []string{}
+	
+	// Create a processor that will give us all objects
+	allObjectsProc := processor.NewProcessor(&tempConfig)
+	
+	// Parse to get all objects in the configuration
+	analysisResult, err := allObjectsProc.ProcessFile(*logFile)
+	if err != nil {
+		return fmt.Errorf("failed to process configuration file: %w", err)
+	}
+	
+	// Build maps for the copier
+	addressMap := make(map[string]*models.AddressObject)
+	for i := range analysisResult.AddressObjects {
+		addr := &analysisResult.AddressObjects[i]
+		addressMap[addr.Name] = addr
+	}
+	
+	groupMap := make(map[string]*models.AddressGroup)
+	for i := range analysisResult.AddressGroups {
+		group := &analysisResult.AddressGroups[i]
+		groupMap[group.Name] = group
+	}
+	
+	securityRuleMap := make(map[string]*models.SecurityRule)
+	for i := range analysisResult.DirectSecurityRules {
+		rule := &analysisResult.DirectSecurityRules[i]
+		securityRuleMap[rule.Name] = rule
+	}
+	for i := range analysisResult.IndirectSecurityRules {
+		rule := &analysisResult.IndirectSecurityRules[i]
+		securityRuleMap[rule.Name] = rule
+	}
+	
+	natRuleMap := make(map[string]*models.NATRule)
+	for i := range analysisResult.DirectNATRules {
+		rule := &analysisResult.DirectNATRules[i]
+		natRuleMap[rule.Name] = rule
+	}
+	for i := range analysisResult.IndirectNATRules {
+		rule := &analysisResult.IndirectNATRules[i]
+		natRuleMap[rule.Name] = rule
+	}
+	
+	// Perform address copy analysis
+	copier := processor.NewAddressCopier(config)
+	copyResult, err := copier.AnalyzeAddressCopy(request, addressMap, groupMap, securityRuleMap, natRuleMap)
+	if err != nil {
+		return fmt.Errorf("address copy analysis failed: %w", err)
+	}
+	
+	// Generate output file
+	outputFile := fmt.Sprintf("%s_copy_commands.yml", utils.SanitizeFilename(*copyAddr))
+	
+	// Convert summary to the format expected by WriteCopyCommands
+	summary := map[string]int{
+		"groups_to_update":         copyResult.Summary.GroupsToUpdate,
+		"security_rules_to_update": copyResult.Summary.SecurityRulesToUpdate,
+		"nat_rules_to_update":      copyResult.Summary.NATRulesToUpdate,
+		"total_commands":           copyResult.Summary.TotalCommands,
+	}
+	
+	writer := utils.NewYAMLWriter()
+	if err := writer.WriteCopyCommands(
+		outputFile,
+		copyResult.SourceAddress,
+		copyResult.NewAddress,
+		copyResult.CreateCommands,
+		copyResult.UpdateCommands,
+		copyResult.GroupMemberships,
+		copyResult.RuleReferences,
+		summary,
+	); err != nil {
+		return fmt.Errorf("failed to write copy commands: %w", err)
+	}
+	
+	if !*silent {
+		fmt.Printf("\nAddress copy analysis complete!\n")
+		fmt.Printf("Commands generated: %d\n", copyResult.Summary.TotalCommands)
+		fmt.Printf("Groups to update: %d\n", copyResult.Summary.GroupsToUpdate)
+		fmt.Printf("Security rules to update: %d\n", copyResult.Summary.SecurityRulesToUpdate)
+		fmt.Printf("NAT rules to update: %d\n", copyResult.Summary.NATRulesToUpdate)
+		fmt.Printf("Results written to: outputs/%s\n", outputFile)
+	}
+	
+	return nil
 }
 
 func init() {

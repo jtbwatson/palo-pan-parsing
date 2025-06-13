@@ -36,19 +36,19 @@ build: ## Build the binary
 
 # Install target
 .PHONY: install
-install: build ## Build and install to local bin directory
-	@echo "Installing $(BINARY_NAME) to ./$(BINARY_NAME)..."
-	cp $(BUILD_DIR)/$(BINARY_NAME) ./$(BINARY_NAME)
-	chmod +x ./$(BINARY_NAME)
-	@echo "Installation complete. Run with: ./$(BINARY_NAME)"
-
-# Global install target
-.PHONY: install-global
-install-global: build ## Install to system PATH (requires sudo)
+install: build ## Build and install to system PATH (requires sudo)
 	@echo "Installing $(BINARY_NAME) globally..."
 	sudo cp $(BUILD_DIR)/$(BINARY_NAME) /usr/local/bin/$(BINARY_NAME)
 	sudo chmod +x /usr/local/bin/$(BINARY_NAME)
 	@echo "Global installation complete. Run with: $(BINARY_NAME)"
+
+# Local install target
+.PHONY: install-local
+install-local: build ## Build and install to local bin directory
+	@echo "Installing $(BINARY_NAME) to ./$(BINARY_NAME)..."
+	cp $(BUILD_DIR)/$(BINARY_NAME) ./$(BINARY_NAME)
+	chmod +x ./$(BINARY_NAME)
+	@echo "Installation complete. Run with: ./$(BINARY_NAME)"
 
 # Run target
 .PHONY: run
@@ -194,12 +194,12 @@ version: ## Show version information
 .PHONY: quickstart
 quickstart: install ## Quick start - install and show help
 	@echo ""
-	@echo "Quick start complete! The parser is now installed."
+	@echo "Quick start complete! The parser is now installed globally."
 	@echo ""
 	@echo "To get started:"
-	@echo "  1. Run in TUI mode: ./$(BINARY_NAME)"
-	@echo "  2. Run with help: ./$(BINARY_NAME) -h" 
-	@echo "  3. Analyze a file: ./$(BINARY_NAME) -l panos.xml -a server-name"
+	@echo "  1. Run in TUI mode: $(BINARY_NAME)"
+	@echo "  2. Run with help: $(BINARY_NAME) -h" 
+	@echo "  3. Analyze a file: $(BINARY_NAME) -l panos.xml -a server-name"
 	@echo ""
 
 # Setup development environment

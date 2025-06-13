@@ -196,3 +196,121 @@ func generateCleanupCommandsCmd(addresses []string, logFile string) tea.Cmd {
 		}
 	}
 }
+
+// addressCopyCmd creates a command to copy address settings
+func addressCopyCmd(logFile, sourceAddr, newAddr, newIP, copyMode string) tea.Cmd {
+	return func() tea.Msg {
+		// Create processor with silent mode for TUI
+		config := &models.Config{
+			LogFile:       logFile,
+			Silent:        true,
+			Timeout:       10 * time.Minute,
+			BufferSize:    65536,
+			MaxWorkers:    4,
+			ProgressEvery: 200000, // Fix divide by zero error
+		}
+
+		// Parse the configuration to get all objects (without target filtering)
+		proc := processor.NewProcessor(config)
+		analysisResult, err := proc.ProcessFile(logFile)
+		if err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("failed to process configuration file: %w", err),
+			}
+		}
+
+		// Build maps for the copier
+		addressMap := make(map[string]*models.AddressObject)
+		for i := range analysisResult.AddressObjects {
+			addr := &analysisResult.AddressObjects[i]
+			addressMap[addr.Name] = addr
+		}
+
+		groupMap := make(map[string]*models.AddressGroup)
+		for i := range analysisResult.AddressGroups {
+			group := &analysisResult.AddressGroups[i]
+			groupMap[group.Name] = group
+		}
+
+		securityRuleMap := make(map[string]*models.SecurityRule)
+		for i := range analysisResult.DirectSecurityRules {
+			rule := &analysisResult.DirectSecurityRules[i]
+			securityRuleMap[rule.Name] = rule
+		}
+		for i := range analysisResult.IndirectSecurityRules {
+			rule := &analysisResult.IndirectSecurityRules[i]
+			securityRuleMap[rule.Name] = rule
+		}
+
+		natRuleMap := make(map[string]*models.NATRule)
+		for i := range analysisResult.DirectNATRules {
+			rule := &analysisResult.DirectNATRules[i]
+			natRuleMap[rule.Name] = rule
+		}
+		for i := range analysisResult.IndirectNATRules {
+			rule := &analysisResult.IndirectNATRules[i]
+			natRuleMap[rule.Name] = rule
+		}
+
+		// Create copy request
+		request := processor.AddressCopyRequest{
+			SourceAddressName: sourceAddr,
+			NewAddressName:    newAddr,
+			NewIPNetmask:      newIP,
+			CopyMode:          copyMode,
+		}
+
+		// Validate copy request
+		if err := processor.ValidateCopyRequest(request); err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("invalid copy request: %w", err),
+			}
+		}
+
+		// Perform address copy analysis
+		copier := processor.NewAddressCopier(config)
+		copyResult, err := copier.AnalyzeAddressCopy(request, addressMap, groupMap, securityRuleMap, natRuleMap)
+		if err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("address copy analysis failed: %w", err),
+			}
+		}
+
+		// Generate output file
+		outputFile := fmt.Sprintf("%s_copy_commands.yml", utils.SanitizeFilename(sourceAddr))
+
+		// Convert summary to the format expected by WriteCopyCommands
+		summary := map[string]int{
+			"groups_to_update":         copyResult.Summary.GroupsToUpdate,
+			"security_rules_to_update": copyResult.Summary.SecurityRulesToUpdate,
+			"nat_rules_to_update":      copyResult.Summary.NATRulesToUpdate,
+			"total_commands":           copyResult.Summary.TotalCommands,
+		}
+
+		writer := utils.NewYAMLWriter()
+		if err := writer.WriteCopyCommands(
+			outputFile,
+			copyResult.SourceAddress,
+			copyResult.NewAddress,
+			copyResult.CreateCommands,
+			copyResult.UpdateCommands,
+			copyResult.GroupMemberships,
+			copyResult.RuleReferences,
+			summary,
+		); err != nil {
+			return ProcessResult{
+				Success: false,
+				Error:   fmt.Errorf("failed to write copy commands: %w", err),
+			}
+		}
+
+		return ProcessResult{
+			Success:           true,
+			OperationComplete: true,
+			ConfigFile:        logFile,
+		}
+	}
+}
