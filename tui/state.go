@@ -123,6 +123,12 @@ func NewModel() Model {
 		deviceGroupScrollOffset: 0,
 		leftPaneWidth:           0, // Will be set by window size
 		rightPaneWidth:          0,
+		// Explicitly initialize input fields as empty
+		fileInput:        "",
+		addressInput:     "",
+		deviceGroupInput: "",
+		newAddressInput:  "",
+		ipAddressInput:   "",
 	}
 }
 
