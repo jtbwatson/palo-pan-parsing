@@ -9,6 +9,7 @@ import (
 
 	"palo-pan-parsing/models"
 	"palo-pan-parsing/processor"
+	"palo-pan-parsing/tui"
 	"palo-pan-parsing/utils"
 )
 
@@ -53,12 +54,15 @@ func main() {
 		os.Exit(1)
 	}
 	
-	if err := validateConfig(config); err != nil {
-		fmt.Fprintf(os.Stderr, "Validation error: %v\n", err)
-		os.Exit(1)
-	}
-	
 	mode := determineRunMode()
+	
+	// Skip validation for TUI mode - it will handle input interactively
+	if mode != "tui" {
+		if err := validateConfig(config); err != nil {
+			fmt.Fprintf(os.Stderr, "Validation error: %v\n", err)
+			os.Exit(1)
+		}
+	}
 	
 	switch mode {
 	case "tui":
@@ -165,8 +169,7 @@ func determineRunMode() string {
 }
 
 func runTUIMode(config *models.Config) error {
-	fmt.Println("TUI mode not yet implemented - falling back to interactive mode")
-	return runInteractiveMode(config)
+	return tui.Run()
 }
 
 func runInteractiveMode(config *models.Config) error {

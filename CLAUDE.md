@@ -89,17 +89,21 @@ make build
 
 ### Data Structure Patterns
 - **Modular Design**: Clean separation of concerns across packages
-- **Structured Models**: Well-defined data structures for all components (models/models.go)
+- **Structured Models**: Well-defined data structures across model files
 - **Address groups processed with context information** (shared vs device-group)
 - **Security rules organized by device groups** with relationship context
-- **Results include redundant address detection** based on IP netmask matching (processor/analysis.go:12-53)
-- **Nested address group analysis** for complex hierarchies (processor/analysis.go:178-282)
-- **Smart cleanup analysis** with scope promotion logic and usage pattern detection (processor/cleanup.go)
+- **Results include redundant address detection** based on IP netmask matching
+- **Nested address group analysis** for complex hierarchies
+- **Smart cleanup analysis** with scope promotion logic and usage pattern detection
 
 ### Dependencies
-- **Runtime**: Minimal external dependencies - only Go standard library for core processing
+- **Runtime**: Uses Bubble Tea framework for TUI (charmbracelet/bubbletea, bubbles, lipgloss)
 - **Build Tools**: Go 1.23+ required (as specified in go.mod)
 - **Vendor Management**: All dependencies vendored for security and reproducible builds
+- **Key External Libraries**:
+  - Bubble Tea: Modern TUI framework for terminal applications
+  - Lipgloss: Styling and layout for terminal interfaces
+  - Bubbles: Common TUI components (inputs, lists, etc.)
 
 ### File Structure
 - **`main.go`**: CLI interface and orchestration
@@ -115,6 +119,8 @@ make build
 - **`models/`**: Data structures (address.go, config.go, groups.go, results.go, rules.go)
 - **`cache/`**: Performance optimization (memory_cache.go, pattern_cache.go)
 - **`utils/`**: Utilities (utils.go, writer.go)
+- **`tui/`**: Terminal User Interface implementation (empty - TUI code may be integrated in main.go)
+- **`ui/`**: User Interface components (empty - UI code may be integrated elsewhere)
 - **`Makefile`**: Comprehensive build system with multi-platform support
 - **`go.mod`**: Go module definition with vendored dependencies
 - **`outputs/`**: Auto-created directory for YAML analysis results
@@ -143,7 +149,7 @@ The modern TUI mode provides a comprehensive graphical interface within the term
 - **Responsive Design**: Clean layout that adapts to terminal size with proper text wrapping
 - **Enhanced Session Summary**: Color-coded session tracking with intelligent formatting for better visual hierarchy
 
-### Workflow States (10-State Machine)
+### Workflow States
 1. **Main Menu**: Choose analysis or exit with visual highlighting
 2. **File Selection**: Enter configuration file path with input validation
 3. **Address Input**: Single or multiple address entry with comma separation support
@@ -152,9 +158,12 @@ The modern TUI mode provides a comprehensive graphical interface within the term
 6. **Additional Options**: Multi-select menu for post-analysis operations
 7. **Source Address Selection**: Choose source address for multi-address group operations
 8. **New Address Input**: Enter custom names for new address objects
-9. **Operation Status**: Feedback screen for command execution results
-10. **Completion Screen**: Responsive thank you screen with analysis statistics
-11. **Error State**: Comprehensive error handling and user feedback
+9. **IP Address Input**: Enter IP addresses for new address objects with CIDR notation
+10. **Operation Status**: Feedback screen for command execution results
+11. **Completion Screen**: Responsive thank you screen with analysis statistics
+12. **Error State**: Comprehensive error handling and user feedback
+
+Note: The exact TUI implementation may vary from this description as TUI source files are not currently present in the tui/ directory.
 
 ### Session Summary Formatting
 The TUI features an intelligent session summary with enhanced visual formatting:
@@ -201,7 +210,7 @@ The TUI provides a celebratory conclusion to analysis workflows:
 ## Development Notes
 
 - The tool supports three modes: modern TUI (default), classic interactive, and command-line
-- **TUI mode (default)**: Modern interface with 9-state navigation, multi-select operations, and visual feedback
+- **TUI mode (default)**: Modern interface with multi-state navigation, multi-select operations, and visual feedback
 - **Interactive mode (`--verbose`)**: Classic guided command-line experience with colored terminal output
 - **Command-line mode**: Direct execution for automation and scripting
 - All output files are automatically saved to `outputs/` directory with YAML-like structured format
@@ -286,7 +295,9 @@ The enhanced command generation produces two-step executable commands:
 - **Per-Address IP Mapping**: Each source address gets its own unique IP address in multi-address workflows
 
 ### Technical Implementation
-- **utils/writer.go**: Smart scope selection logic in `generateAddressCreationCommands()` function
-- **tui/models.go**: Extended state machine with IP address input state and validation
-- **tui/commands.go**: Enhanced command generation functions with IP address parameter support
-- **ui/interactive.go**: Updated interactive prompts with IP address collection and validation
+- **utils/writer.go**: Smart scope selection logic in address creation command generation
+- **main.go**: May contain TUI implementation (tui/ directory is currently empty)
+- Command generation functions with IP address parameter support
+- Interactive prompts with IP address collection and validation
+
+Note: Specific TUI implementation files (tui/models.go, tui/commands.go, ui/interactive.go) referenced in this documentation may not exist as separate files, as the TUI functionality may be integrated within main.go or other core files.
